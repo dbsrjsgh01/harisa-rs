@@ -5,9 +5,13 @@ use crate::core::pedersen::{
 use crate::BasePrimeField;
 
 use ark_ec::pairing::Pairing;
+use ark_ff::One;
 use ark_r1cs_std::{fields::fp::FpVar, pairing::PairingVar, prelude::*};
 use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError, SynthesisMode};
-use std::marker::PhantomData;
+use std::{
+    marker::PhantomData,
+    ops::{AddAssign, Mul, MulAssign},
+};
 
 pub struct ArithmCircuit<E: Pairing, P: PairingVar<E, BasePrimeField<E>>> {
     // statements
@@ -24,10 +28,7 @@ pub struct ArithmCircuit<E: Pairing, P: PairingVar<E, BasePrimeField<E>>> {
     // witness
     u: Plaintext<E>,
     o_u: Randomness<E>,
-    r: Plaintext<E>,
-    s: Plaintext<E>,
-    // r: BasePrimeField<E>,
-    // s: BasePrimeField<E>,
+    sr: Plaintext<E>,
     o_sr: Randomness<E>,
     _curve: PhantomData<P>,
 }
@@ -49,10 +50,7 @@ where
         // k: BasePrimeField<E>,
         u: Plaintext<E>,
         o_u: Randomness<E>,
-        r: Plaintext<E>,
-        s: Plaintext<E>,
-        // r: BasePrimeField<E>,
-        // s: BasePrimeField<E>,
+        sr: Plaintext<E>,
         o_sr: Randomness<E>,
     ) -> Self {
         Self {
@@ -64,8 +62,7 @@ where
             k,
             u,
             o_u,
-            r,
-            s,
+            sr,
             o_sr,
             _curve: PhantomData,
         }
@@ -87,10 +84,7 @@ pub struct ArithmGadget<E: Pairing, P: PairingVar<E, BasePrimeField<E>>> {
     // witness
     u: PlaintextVar<E, P>,
     o_u: RandomnessVar<E, P>,
-    r: PlaintextVar<E, P>,
-    s: PlaintextVar<E, P>,
-    // r: FpVar<BasePrimeField<E>>,
-    // s: FpVar<BasePrimeField<E>>,
+    sr: PlaintextVar<E, P>,
     o_sr: RandomnessVar<E, P>,
 }
 
@@ -111,10 +105,7 @@ where
         // k: FpVar<BasePrimeField<E>>,
         u: PlaintextVar<E, P>,
         o_u: RandomnessVar<E, P>,
-        r: PlaintextVar<E, P>,
-        s: PlaintextVar<E, P>,
-        // r: FpVar<BasePrimeField<E>>,
-        // s: FpVar<BasePrimeField<E>>,
+        sr: PlaintextVar<E, P>,
         o_sr: RandomnessVar<E, P>,
     ) -> Self {
         Self {
@@ -126,16 +117,15 @@ where
             k,
             u,
             o_u,
-            s,
-            r,
+            sr,
             o_sr,
         }
     }
 
     fn cparithm(&self) -> Result<(), SynthesisError> {
-        //  1. k_hat = s * h * prod_{i in m} u_i + r mod l ==> 아직 구현 안함
+        //  1. k_hat = s * h * prod_{i in m} u_i + r mod l ==> 현재 에러 파트
         //  2. c_u = COMM(u, o_u)
-        //  3. c_sr = COMM(s, r, o_sr) ==> 현재 에러 파트
+        //  3. c_sr = COMM(s, r, o_sr)
 
         let rand_u = self.o_u.rand.clone().to_bits_le()?;
 
@@ -152,14 +142,39 @@ where
 
         let mut circuit_cm_sr = self.pp.h.clone().scalar_mul_le(rand_sr.clone().iter())?;
 
-        let vec_sr = [self.s.msg.clone(), self.r.msg.clone()].concat();
-
-        for (g_i, m_i) in self.pp.g.iter().zip(vec_sr.into_iter()) {
+        for (g_i, m_i) in self
+            .pp
+            .g
+            .clone()
+            .iter()
+            .zip(self.sr.msg.clone().into_iter())
+        {
             let computed_cm_sr_i = g_i.scalar_mul_le(m_i.to_bits_le()?.iter())?;
             circuit_cm_sr += computed_cm_sr_i;
         }
 
         self.cm_sr.cm.enforce_equal(&circuit_cm_sr)?;
+
+        let binding = self.sr.msg.clone();
+        let mut sr_iter = binding.iter();
+
+        let s = sr_iter.next().unwrap();
+        let r = sr_iter.next().unwrap();
+
+        let mut computed_k = s * self.h.msg.clone().first().unwrap();
+
+        for m_i in self.u.msg.clone().iter() {
+            computed_k *= m_i;
+        }
+
+        computed_k += r;
+
+        self.k
+            .msg
+            .iter()
+            .next()
+            .unwrap()
+            .enforce_equal(&computed_k)?;
 
         Ok(())
     }
@@ -194,6 +209,19 @@ where
         let circuit_k =
             PlaintextVar::new_witness(ark_relations::ns!(cs, "cparithm::k"), || Ok(&self.k))?;
 
+        let circuit_u =
+            PlaintextVar::new_witness(ark_relations::ns!(cs, "cparithm::u"), || Ok(&self.u))?;
+
+        let circuit_o_u =
+            RandomnessVar::new_witness(ark_relations::ns!(cs, "cparithm::o_u"), || Ok(&self.o_u))?;
+
+        let circuit_sr =
+            PlaintextVar::new_witness(ark_relations::ns!(cs, "cparithm::sr"), || Ok(&self.sr))?;
+        let circuit_o_sr = RandomnessVar::new_witness(
+            ark_relations::ns!(cs, "cparithm::o_sr"),
+            || Ok(&self.o_sr),
+        )?;
+
         // let circuit_h =
         //     FpVar::<BasePrimeField<E>>::new_input(ark_relations::ns!(cs, "cparithm::h"), || {
         //         Ok(&self.h)
@@ -209,33 +237,6 @@ where
         //         Ok(&self.k)
         //     })?;
 
-        let circuit_u =
-            PlaintextVar::new_witness(ark_relations::ns!(cs, "cparithm::u"), || Ok(&self.u))?;
-
-        let circuit_o_u =
-            RandomnessVar::new_witness(ark_relations::ns!(cs, "cparithm::o_u"), || Ok(&self.o_u))?;
-
-        let circuit_s =
-            PlaintextVar::new_witness(ark_relations::ns!(cs, "cparithm::s"), || Ok(&self.s))?;
-
-        let circuit_r =
-            PlaintextVar::new_witness(ark_relations::ns!(cs, "cparithm::r"), || Ok(&self.r))?;
-
-        // let circuit_s =
-        //     FpVar::<BasePrimeField<E>>::new_input(ark_relations::ns!(cs, "cparithm::s"), || {
-        //         Ok(&self.s)
-        //     })?;
-
-        // let circuit_r =
-        //     FpVar::<BasePrimeField<E>>::new_input(ark_relations::ns!(cs, "cparithm::r"), || {
-        //         Ok(&self.r)
-        //     })?;
-
-        let circuit_o_sr = RandomnessVar::new_witness(
-            ark_relations::ns!(cs, "cparithm::o_sr"),
-            || Ok(&self.o_sr),
-        )?;
-
         let arithm = ArithmGadget::<E, P>::new(
             circuit_pp,
             circuit_cm_u,
@@ -245,8 +246,7 @@ where
             circuit_k,
             circuit_u,
             circuit_o_u,
-            circuit_s,
-            circuit_r,
+            circuit_sr,
             circuit_o_sr,
         );
 
@@ -254,9 +254,26 @@ where
     }
 }
 
+fn calculate_k<E: Pairing>(
+    sr: Plaintext<E>,
+    h: Plaintext<E>,
+    u: Plaintext<E>,
+) -> Result<E::ScalarField, SynthesisError> {
+    let mut mul_vec = [h.msg.clone(), u.msg.clone()].concat();
+    mul_vec.push(sr.msg.clone()[0]);
+    let mut k = E::ScalarField::one();
+    for m_i in mul_vec.iter() {
+        k *= m_i;
+    }
+
+    k += sr.msg.clone()[1];
+
+    Ok(k.into())
+}
+
 #[cfg(test)]
 mod bls12_377 {
-    use super::ArithmCircuit;
+    use super::{calculate_k, ArithmCircuit};
     use crate::core::cc_snark::{prepare_verifying_key, CcGroth16};
     use crate::core::pedersen::data_structure::{Parameters, Plaintext};
     use crate::core::pedersen::Pedersen;
@@ -291,18 +308,16 @@ mod bls12_377 {
 
         let (cm_u, o_u) = Pedersen::<E>::commit(pp.clone(), u.clone(), &mut rng).unwrap();
 
-        let s_vec = <E as Pairing>::ScalarField::rand(&mut rng);
-        let r_vec = <E as Pairing>::ScalarField::rand(&mut rng);
+        let mut sr_vec = Vec::new();
 
-        let sr = Plaintext::<E>::from_plaintext_vec(vec![s_vec.clone(), r_vec.clone()]);
+        for _ in 0..2 {
+            let sr_i = <E as Pairing>::ScalarField::rand(&mut rng);
+            sr_vec.push(sr_i);
+        }
+
+        let sr = Plaintext::<E>::from_plaintext_vec(sr_vec);
 
         let (cm_sr, o_sr) = Pedersen::<E>::commit(pp.clone(), sr.clone(), &mut rng).unwrap();
-
-        println!("cm_sr: {:#?}", cm_sr.cm);
-
-        let s = Plaintext::<E>::from_plaintext_vec(vec![s_vec]);
-
-        let r = Plaintext::<E>::from_plaintext_vec(vec![r_vec]);
 
         let h =
             Plaintext::<E>::from_plaintext_vec(vec![<E as Pairing>::ScalarField::rand(&mut rng)]);
@@ -310,13 +325,9 @@ mod bls12_377 {
         let l =
             Plaintext::<E>::from_plaintext_vec(vec![<E as Pairing>::ScalarField::rand(&mut rng)]);
 
-        let k =
-            Plaintext::<E>::from_plaintext_vec(vec![<E as Pairing>::ScalarField::rand(&mut rng)]);
+        let k_vec = calculate_k::<E>(sr.clone(), h.clone(), u.clone()).unwrap();
 
-        // Field 내에서 multiplication만 가능하다면 되는데...
-        // let k_field = s_vec * h.msg + r_vec;
-
-        // let k = Plaintext::<E>::from_plaintext_vec(vec![k_field]);
+        let k = Plaintext::<E>::from_plaintext_vec(vec![k_vec]);
 
         let circuit = ArithmCircuit::<E, EV>::new(
             pp.clone(),
@@ -327,27 +338,18 @@ mod bls12_377 {
             k.clone(),
             u.clone(),
             o_u.clone(),
-            r.clone(),
-            s.clone(),
+            sr.clone(),
             o_sr.clone(),
         );
 
         let (ek, vk) = CcGroth16::<P>::circuit_specific_setup(circuit, &mut rng).unwrap();
         let pvk = prepare_verifying_key(&vk);
 
-        let circuit = ArithmCircuit::<E, EV>::new(pp, cm_u, cm_sr, h, l, k, u, o_u, r, s, o_sr);
+        let circuit = ArithmCircuit::<E, EV>::new(pp, cm_u, cm_sr, h, l, k, u, o_u, sr, o_sr);
 
         let proof = CcGroth16::<P>::prove(&ek, circuit, &mut rng).unwrap();
-        std::env::set_var("RUST_BACKTRACE", "full");
         // assert!(CcGroth16::<P>::verify_with_processed_vk(&pvk, &[], &proof).unwrap());
         let result = CcGroth16::<P>::verify_with_processed_vk(&pvk, &[], &proof).unwrap();
         println!("Result: {:#?}", result);
-        // 현재 유일하게 test fail이 뜸 (예상은 s, r 커밋하는데에서 예상 중)
     }
 }
-
-// ---- harisa::arithm::bls12_377::test_cp_arithm_bls12_377 stdout ----
-// Constraint trace requires enabling `ConstraintLayer`
-// thread 'harisa::arithm::bls12_377::test_cp_arithm_bls12_377' panicked at src/core/cc_snark/prover.rs:227:9:
-// assertion failed: cs.is_satisfied().unwrap()
-// note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

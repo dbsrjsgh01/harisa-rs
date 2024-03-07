@@ -2,6 +2,7 @@ use super::{
     arithm::ArithmCircuit,
     data_structure::{HarisaPP, HarisaProof},
     hash_to_prime::hash_to_prime,
+    r1cs_to_qap::LibsnarkReduction,
 };
 
 use crate::core::pedersen::Pedersen;
@@ -19,7 +20,9 @@ use ark_crypto_primitives::snark::*;
 use ark_ec::{pairing::Pairing, AffineRepr};
 use ark_ff::{BigInteger, PrimeField};
 use ark_r1cs_std::prelude::*;
-use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
+use ark_relations::r1cs::{
+    ConstraintSynthesizer, ConstraintSystem, OptimizationGoal, SynthesisError,
+};
 use ark_std::{
     rand::{CryptoRng, Rng, RngCore},
     One, UniformRand, Zero,
@@ -27,7 +30,7 @@ use ark_std::{
 
 use super::Harisa;
 
-impl<E: Pairing> Harisa<E> {
+impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
     fn generate_cc_proof<C, R>(
         pk: &ProvingKey<E>,
         circuit: C,
@@ -39,28 +42,18 @@ impl<E: Pairing> Harisa<E> {
     {
         let cc_snark_prover_time = start_timer!(|| "ccGroth::Prover");
 
-        let cc_prf = CcGroth16::<E>::prove(&pk, circuit, rng).unwrap();
+        let cc_prf = CcGroth16::<E, QAP>::prove(&pk, circuit, rng).unwrap();
 
         end_timer!(cc_snark_prover_time);
 
         Ok(cc_prf)
     }
 
-    fn generate_cp_arithm_proof<C, R>(
-        pk: &ProvingKey<E>,
-        circuit: C,
-        rng: &mut R,
-    ) -> Result<Proof<E>, SynthesisError>
-    where
-        C: ConstraintSynthesizer<E::ScalarField>,
-        R: Rng + RngCore + CryptoRng,
-    {
-        let arithm_proof = Ok(CcGroth16::<E>::prove(&pk, circuit, rng).unwrap());
-
-        arithm_proof
-    }
-
-    pub fn generate_harisa_proof<C, R>(
+    pub fn generate_harisa_proof<
+        Arithm: ConstraintSynthesizer<E::ScalarField>,
+        Bound: ConstraintSynthesizer<E::ScalarField>,
+        R: RngCore + CryptoRng + Rng,
+    >(
         pp: &HarisaPP<E>,
         accum: E::G1Affine,
         cm_u: Commitment<E>,
@@ -68,14 +61,14 @@ impl<E: Pairing> Harisa<E> {
         u: Plaintext<E>,
         o_u: Randomness<E>,
         p: Vec<E::ScalarField>,
-        arithm_circuit: C,
-        bound_circuit: C,
+        arithm_circuit: Arithm,
+        bound_circuit: Bound,
         rng: &mut R,
-    ) -> Result<HarisaProof<E>, SynthesisError>
-    where
-        C: ConstraintSynthesizer<E::ScalarField>,
-        R: Rng + RngCore + CryptoRng,
-    {
+    ) -> Result<HarisaProof<E>, SynthesisError> {
+        // let cs = ConstraintSystem::new_ref();
+
+        // cs.set_optimization_goal(OptimizationGoal::Constraints);
+
         // pstar
         let mut p_star = E::ScalarField::one();
         // accumulator hat 구하기
@@ -154,19 +147,9 @@ impl<E: Pairing> Harisa<E> {
         // Hash-to-prime => l
         let l = hash_to_prime::<E, R>(vec![w_hat.into()], rng).unwrap();
 
-        // let arithm_circuit = ArithmCircuit::<E, P>::new(
-        //     pp.cm_pp.clone(),
-        //     cm_u.clone(),
-        //     cm_sr.clone(),
-        //     Plaintext::<E>::from_plaintext_vec(vec![h.clone()]),
-        //     Plaintext::<E>::from_plaintext_vec(vec![l.clone()]),
-        //     Plaintext::<E>::from_plaintext_vec(vec![k.clone()]),
-        //     u.clone(),
-        //     o_u.clone(),
-        //     Plaintext::<E>::from_plaintext_vec(vec![r_rand.clone()]),
-        //     Plaintext::<E>::from_plaintext_vec(vec![s.clone()]),
-        //     o_sr.clone(),
-        // );
+        // arithm_circuit.generate_constraints(cs.clone())?;
+        // debug_assert!(cs.is_satisfied().unwrap());
+        // cs.finalize();
 
         // arithm => prf2
         let arithm_prf =

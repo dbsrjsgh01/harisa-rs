@@ -33,19 +33,15 @@ fn test_harisa<E: Pairing, P: PairingVar<E, BasePrimeField<E>>>(n: usize) {
 
     let (cm_u, o_u) = Pedersen::<E>::commit(cm_pp.clone(), u.clone(), &mut rng).unwrap();
 
-    let mut i = msg.iter();
-    let s_vec = i.next().unwrap();
-    let r_vec = i.next().unwrap();
+    let mut sr_vec = Vec::new();
+    for _ in 0..2 {
+        let m_i = E::ScalarField::rand(&mut rng);
+        sr_vec.push(m_i);
+    }
 
-    let s = Plaintext::<E>::from_plaintext_vec(vec![*s_vec]);
-    let r = Plaintext::<E>::from_plaintext_vec(vec![*r_vec]);
+    let sr = Plaintext::<E>::from_plaintext_vec(sr_vec);
 
-    let (cm_sr, o_sr) = Pedersen::<E>::commit(
-        cm_pp.clone(),
-        Plaintext::<E>::from_plaintext_vec(vec![s_vec.clone(), r_vec.clone()]),
-        &mut rng,
-    )
-    .unwrap();
+    let (cm_sr, o_sr) = Pedersen::<E>::commit(cm_pp.clone(), sr.clone(), &mut rng).unwrap();
 
     // h, l, k, p
 
@@ -58,8 +54,7 @@ fn test_harisa<E: Pairing, P: PairingVar<E, BasePrimeField<E>>>(n: usize) {
         k,
         u.clone(),
         o_u.clone(),
-        r.clone(),
-        s.clone(),
+        sr.clone(),
         o_sr.clone(),
     );
 
@@ -84,8 +79,7 @@ fn test_harisa<E: Pairing, P: PairingVar<E, BasePrimeField<E>>>(n: usize) {
         k,
         u.clone(),
         o_u.clone(),
-        r.clone(),
-        s.clone(),
+        sr.clone(),
         o_sr.clone(),
     );
 
@@ -165,8 +159,7 @@ mod arithm {
             k.clone(),
             u.clone(),
             o_u.clone(),
-            s.clone(),
-            r.clone(),
+            sr.clone(),
             o_sr.clone(),
         );
 

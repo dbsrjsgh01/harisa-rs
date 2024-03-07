@@ -17,7 +17,7 @@ use ark_r1cs_std::pairing::PairingVar;
 use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
 use ark_std::rand::{CryptoRng, Rng, RngCore};
 
-impl<E: Pairing> Harisa<E> {
+impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
     pub fn generate_cc_snark_parameters<
         C: ConstraintSynthesizer<E::ScalarField>,
         R: RngCore + CryptoRng,
@@ -26,21 +26,21 @@ impl<E: Pairing> Harisa<E> {
         rng: &mut R,
     ) -> Result<(ProvingKey<E>, VerifyingKey<E>), SynthesisError> {
         let cc_snark_generator = start_timer!(|| "ccGroth::Generator");
-        let (cc_ek, cc_vk) = CcGroth16::<E>::circuit_specific_setup(circuit, rng).unwrap();
+        let (cc_ek, cc_vk) = CcGroth16::<E, QAP>::circuit_specific_setup(circuit, rng).unwrap();
         end_timer!(cc_snark_generator);
         Ok((cc_ek, cc_vk))
     }
 
-    pub fn generate_harisa_parameters<C, R>(
-        num: usize,
-        arithm_circuit: C,
-        bound_circuit: C,
-        rng: &mut R,
-    ) -> Result<HarisaPP<E>, SynthesisError>
-    where
-        C: ConstraintSynthesizer<E::ScalarField>,
+    pub fn generate_harisa_parameters<
+        Arithm: ConstraintSynthesizer<E::ScalarField>,
+        Bound: ConstraintSynthesizer<E::ScalarField>,
         R: RngCore + CryptoRng + Rng,
-    {
+    >(
+        num: usize,
+        arithm_circuit: Arithm,
+        bound_circuit: Bound,
+        rng: &mut R,
+    ) -> Result<HarisaPP<E>, SynthesisError> {
         let harisa_generation = start_timer!(|| "HARiSA::Generator");
 
         let arithm_generation = start_timer!(|| "arithm::generator");

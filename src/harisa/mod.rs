@@ -15,11 +15,12 @@ use std::marker::PhantomData;
 pub use crate::core::cc_snark::*;
 use crate::BasePrimeField;
 
+use ark_crypto_primitives::snark::*;
 pub use ark_ec::pairing::Pairing;
 use ark_r1cs_std::pairing::PairingVar;
+use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
+use ark_std::rand::RngCore;
 
-pub struct Harisa<E: Pairing> {
-    _curve: PhantomData<E>,
+pub struct Harisa<E: Pairing, QAP: R1CSToQAP = LibsnarkReduction> {
+    _curve: PhantomData<(E, QAP)>,
 }
-
-impl<E: Pairing> Harisa<E> {}

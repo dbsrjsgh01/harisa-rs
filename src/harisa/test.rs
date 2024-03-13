@@ -44,14 +44,21 @@ fn test_harisa<E: Pairing, P: PairingVar<E, BasePrimeField<E>>>(n: usize) {
     let (cm_sr, o_sr) = Pedersen::<E>::commit(cm_pp.clone(), sr.clone(), &mut rng).unwrap();
 
     // h, l, k, p
+    let h = Randomness::<E>::to_rand(<E as Pairing>::ScalarField::rand(&mut rng));
+
+    let l = Randomness::<E>::to_rand(<E as Pairing>::ScalarField::rand(&mut rng));
+
+    let k = Randomness::<E>::to_rand(calculate_k::<E>(sr.clone(), h.clone(), u.clone()).unwrap());
+
+    let p = Randomness::<E>::to_rand(<E as Pairing>::ScalarField::one());
 
     let arithm_circuit = ArithmCircuit::<E, P>::new(
         cm_pp.clone(),
         cm_u.clone(),
         cm_sr.clone(),
-        h,
-        l,
-        k,
+        h.clone(),
+        l.clone(),
+        k.clone(),
         u.clone(),
         o_u.clone(),
         sr.clone(),
@@ -74,9 +81,9 @@ fn test_harisa<E: Pairing, P: PairingVar<E, BasePrimeField<E>>>(n: usize) {
         cm_pp.clone(),
         cm_u.clone(),
         cm_sr.clone(),
-        h,
-        l,
-        k,
+        h.clone(),
+        l.clone(),
+        k.clone(),
         u.clone(),
         o_u.clone(),
         sr.clone(),
@@ -108,18 +115,10 @@ fn test_harisa<E: Pairing, P: PairingVar<E, BasePrimeField<E>>>(n: usize) {
     assert!(Harisa::<E>::harisa_verify(harisa_pp, accum, c_u, proof).unwrap());
 }
 
-fn random_value<E: Pairing, R: Rng>(rng: &mut R) -> E::ScalarField {
-    E::ScalarField::rand(rng)
-}
-
 mod arithm {
-    use super::{random_value, test_harisa};
+    use super::test_harisa;
     use ark_crypto_primitives::snark::SNARK;
     use ark_ec::bls12::Bls12;
-    use ark_std::{
-        rand::{Rng, RngCore, SeedableRng},
-        test_rng,
-    };
 
     #[test]
     fn test_cc_groth16_arithm_bls12_377() {
@@ -133,44 +132,6 @@ mod arithm {
         use ark_bw6_761::BW6_761 as P;
         use ark_ec::pairing::Pairing;
 
-        let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
-
-        let pp = Pedersen::<E>::setup(8, &mut rng).unwrap();
-
-        let (cm_u, u, o_u) = test_commit::<E>(pp.clone(), 8);
-
-        let (cm_sr, sr, o_sr) = test_commit::<E>(pp.clone(), 2);
-
-        let s = sr.clone().msg.into_iter().nth(0).unwrap();
-        let r = sr.clone().msg.into_iter().nth(1).unwrap();
-
-        let h: <E as Pairing>::ScalarField = random_value(&mut rng);
-
-        let l: <E as Pairing>::ScalarField = random_value(&mut rng);
-
-        let k: <E as Pairing>::ScalarField = random_value(&mut rng);
-
-        let arithm_circuit = ArithmCircuit::<E, EV>::new(
-            pp.clone(),
-            cm_u.clone(),
-            cm_sr.clone(),
-            h.clone(),
-            l.clone(),
-            k.clone(),
-            u.clone(),
-            o_u.clone(),
-            sr.clone(),
-            o_sr.clone(),
-        );
-
-        let (ek, vk) = CcGroth16::<P>::circuit_specific_setup(circuit, &mut rng).unwrap();
-
-        let pvk = prepare_verifying_key::<P>(&vk);
-
-        let circuit = ArithmCircuit::<E, EV>::new(pp, cm_u, cm_sr, h, l, k, u, o_u, s, r, o_sr);
-
-        let proof = CcGroth16::<P>::prove(&ek, circuit, &mut rng).unwrap();
-
-        assert!(CcGroth16::<P>::verify_with_processed_vk(&pvk, &[], &proof).unwrap());
+        test_harisa::<E, EV>(8);
     }
 }

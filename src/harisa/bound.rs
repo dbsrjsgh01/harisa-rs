@@ -13,7 +13,7 @@ pub struct BoundCircuit<E: Pairing, P: PairingVar<E, BasePrimeField<E>>> {
     // statements
     pp: Parameters<E>,
     cm_u: Commitment<E>,
-    p: Plaintext<E>,
+    p: Randomness<E>,
 
     // witness
     u: Plaintext<E>,
@@ -29,7 +29,7 @@ where
     pub fn new(
         pp: Parameters<E>,
         cm_u: Commitment<E>,
-        p: Plaintext<E>,
+        p: Randomness<E>,
         u: Plaintext<E>,
         o_u: Randomness<E>,
     ) -> Self {
@@ -47,7 +47,7 @@ where
 pub struct BoundGadget<E: Pairing, P: PairingVar<E, BasePrimeField<E>>> {
     pp: ParametersVar<E, P>,
     cm_u: CommitmentVar<E, P>,
-    p: PlaintextVar<E, P>,
+    p: RandomnessVar<E, P>,
     u: PlaintextVar<E, P>,
     o_u: RandomnessVar<E, P>,
 }
@@ -60,7 +60,7 @@ where
     fn new(
         pp: ParametersVar<E, P>,
         cm_u: CommitmentVar<E, P>,
-        p: PlaintextVar<E, P>,
+        p: RandomnessVar<E, P>,
         u: PlaintextVar<E, P>,
         o_u: RandomnessVar<E, P>,
     ) -> Self {
@@ -89,11 +89,7 @@ where
 
         // 2. All of u_i are greater than B
         for m_i in self.u.msg.iter() {
-            m_i.enforce_cmp(
-                &self.p.msg.clone().first().unwrap(),
-                std::cmp::Ordering::Greater,
-                false,
-            )?;
+            m_i.enforce_cmp(&self.p.rand.clone(), std::cmp::Ordering::Greater, false)?;
         }
 
         Ok(())
@@ -116,7 +112,7 @@ where
             CommitmentVar::new_input(ark_relations::ns!(cs, "cpbound::cm_u"), || Ok(&self.cm_u))?;
 
         let circuit_p =
-            PlaintextVar::new_input(ark_relations::ns!(cs, "cpbound::p"), || Ok(&self.p))?;
+            RandomnessVar::new_input(ark_relations::ns!(cs, "cpbound::p"), || Ok(&self.p))?;
 
         let circuit_u =
             PlaintextVar::new_witness(ark_relations::ns!(cs, "cpbound::u"), || Ok(&self.u))?;
@@ -137,7 +133,7 @@ where
 mod bls12_377 {
     use super::BoundCircuit;
     use crate::core::cc_snark::{prepare_verifying_key, CcGroth16};
-    use crate::core::pedersen::data_structure::Plaintext;
+    use crate::core::pedersen::data_structure::{Plaintext, Randomness};
     use crate::core::pedersen::Pedersen;
     use ark_bls12_377::{
         constraints::{G1Var, PairingVar as EV},
@@ -170,7 +166,7 @@ mod bls12_377 {
 
         let (cm_u, o_u) = Pedersen::<E>::commit(pp.clone(), u.clone(), &mut rng).unwrap();
 
-        let p = Plaintext::<E>::from_plaintext_vec(vec![<E as Pairing>::ScalarField::one()]);
+        let p = Randomness::<E>::to_rand(<E as Pairing>::ScalarField::one());
 
         let circuit =
             BoundCircuit::<E, EV>::new(pp.clone(), cm_u.clone(), p.clone(), u.clone(), o_u.clone());

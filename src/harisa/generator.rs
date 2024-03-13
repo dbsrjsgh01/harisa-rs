@@ -52,7 +52,7 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         let (bound_ek, bound_vk) = Self::generate_cc_snark_parameters(bound_circuit, rng).unwrap();
         end_timer!(bound_generation);
 
-        let cm_pp = Pedersen::<E>::setup(num, rng).unwrap();
+        let cm_pp = Pedersen::<E>::setup(num + 1, rng).unwrap();
 
         end_timer!(harisa_generation);
 

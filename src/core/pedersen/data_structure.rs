@@ -33,6 +33,12 @@ pub struct Randomness<E: Pairing> {
     pub rand: E::ScalarField,
 }
 
+impl<E: Pairing> Randomness<E> {
+    pub fn to_rand(r: E::ScalarField) -> Self {
+        Self { rand: r }
+    }
+}
+
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
 pub struct Commitment<E: Pairing> {
     pub cm: E::G1Affine,

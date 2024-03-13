@@ -18,12 +18,9 @@ pub struct ArithmCircuit<E: Pairing, P: PairingVar<E, BasePrimeField<E>>> {
     pp: Parameters<E>,
     cm_u: Commitment<E>,
     cm_sr: Commitment<E>,
-    h: Plaintext<E>, // Todo: Plaintext<E> -> BasePrimeField<E>
-    l: Plaintext<E>,
-    k: Plaintext<E>,
-    // h: BasePrimeField<E>,
-    // l: BasePrimeField<E>,
-    // k: BasePrimeField<E>,
+    h: Randomness<E>,
+    l: Randomness<E>,
+    k: Randomness<E>,
 
     // witness
     u: Plaintext<E>,
@@ -42,12 +39,9 @@ where
         pp: Parameters<E>,
         cm_u: Commitment<E>,
         cm_sr: Commitment<E>,
-        h: Plaintext<E>, // Todo: Plaintext<E> -> BasePrimeField<E>
-        l: Plaintext<E>,
-        k: Plaintext<E>,
-        // h: BasePrimeField<E>,
-        // l: BasePrimeField<E>,
-        // k: BasePrimeField<E>,
+        h: Randomness<E>,
+        l: Randomness<E>,
+        k: Randomness<E>,
         u: Plaintext<E>,
         o_u: Randomness<E>,
         sr: Plaintext<E>,
@@ -74,12 +68,9 @@ pub struct ArithmGadget<E: Pairing, P: PairingVar<E, BasePrimeField<E>>> {
     pp: ParametersVar<E, P>,
     cm_u: CommitmentVar<E, P>,
     cm_sr: CommitmentVar<E, P>,
-    h: PlaintextVar<E, P>,
-    l: PlaintextVar<E, P>,
-    k: PlaintextVar<E, P>,
-    // h: FpVar<BasePrimeField<E>>,
-    // l: FpVar<BasePrimeField<E>>,
-    // k: FpVar<BasePrimeField<E>>,
+    h: RandomnessVar<E, P>,
+    l: RandomnessVar<E, P>,
+    k: RandomnessVar<E, P>,
 
     // witness
     u: PlaintextVar<E, P>,
@@ -97,12 +88,9 @@ where
         pp: ParametersVar<E, P>,
         cm_u: CommitmentVar<E, P>,
         cm_sr: CommitmentVar<E, P>,
-        h: PlaintextVar<E, P>,
-        l: PlaintextVar<E, P>,
-        k: PlaintextVar<E, P>,
-        // h: FpVar<BasePrimeField<E>>,
-        // l: FpVar<BasePrimeField<E>>,
-        // k: FpVar<BasePrimeField<E>>,
+        h: RandomnessVar<E, P>,
+        l: RandomnessVar<E, P>,
+        k: RandomnessVar<E, P>,
         u: PlaintextVar<E, P>,
         o_u: RandomnessVar<E, P>,
         sr: PlaintextVar<E, P>,
@@ -155,13 +143,14 @@ where
 
         self.cm_sr.cm.enforce_equal(&circuit_cm_sr)?;
 
+        // k_hat = s * h * prod_{i in m} u_i + r mod l (자동 modulus가 안된다?)
         let binding = self.sr.msg.clone();
         let mut sr_iter = binding.iter();
 
         let s = sr_iter.next().unwrap();
         let r = sr_iter.next().unwrap();
 
-        let mut computed_k = s * self.h.msg.clone().first().unwrap();
+        let mut computed_k = s * self.h.rand.clone();
 
         for m_i in self.u.msg.clone().iter() {
             computed_k *= m_i;
@@ -169,12 +158,8 @@ where
 
         computed_k += r;
 
-        self.k
-            .msg
-            .iter()
-            .next()
-            .unwrap()
-            .enforce_equal(&computed_k)?;
+        self.k.rand.enforce_equal(&computed_k)?;
+        // FpVar에서의 enforce_equal과 G1Var에서의 enforce_equal는 다를지도...? 이걸 다시 little endian으로 해야 하나...?
 
         Ok(())
     }
@@ -201,13 +186,13 @@ where
         )?;
 
         let circuit_h =
-            PlaintextVar::new_witness(ark_relations::ns!(cs, "cparithm::h"), || Ok(&self.h))?;
+            RandomnessVar::new_input(ark_relations::ns!(cs, "cparithm::h"), || Ok(&self.h))?;
 
         let circuit_l =
-            PlaintextVar::new_witness(ark_relations::ns!(cs, "cparithm::l"), || Ok(&self.l))?;
+            RandomnessVar::new_input(ark_relations::ns!(cs, "cparithm::l"), || Ok(&self.l))?;
 
         let circuit_k =
-            PlaintextVar::new_witness(ark_relations::ns!(cs, "cparithm::k"), || Ok(&self.k))?;
+            RandomnessVar::new_input(ark_relations::ns!(cs, "cparithm::k"), || Ok(&self.k))?;
 
         let circuit_u =
             PlaintextVar::new_witness(ark_relations::ns!(cs, "cparithm::u"), || Ok(&self.u))?;
@@ -217,25 +202,11 @@ where
 
         let circuit_sr =
             PlaintextVar::new_witness(ark_relations::ns!(cs, "cparithm::sr"), || Ok(&self.sr))?;
+
         let circuit_o_sr = RandomnessVar::new_witness(
             ark_relations::ns!(cs, "cparithm::o_sr"),
             || Ok(&self.o_sr),
         )?;
-
-        // let circuit_h =
-        //     FpVar::<BasePrimeField<E>>::new_input(ark_relations::ns!(cs, "cparithm::h"), || {
-        //         Ok(&self.h)
-        //     })?;
-
-        // let circuit_l =
-        //     FpVar::<BasePrimeField<E>>::new_input(ark_relations::ns!(cs, "cparithm::l"), || {
-        //         Ok(&self.l)
-        //     })?;
-
-        // let circuit_k =
-        //     FpVar::<BasePrimeField<E>>::new_input(ark_relations::ns!(cs, "cparithm::k"), || {
-        //         Ok(&self.k)
-        //     })?;
 
         let arithm = ArithmGadget::<E, P>::new(
             circuit_pp,
@@ -256,13 +227,11 @@ where
 
 fn calculate_k<E: Pairing>(
     sr: Plaintext<E>,
-    h: Plaintext<E>,
+    h: Randomness<E>,
     u: Plaintext<E>,
 ) -> Result<E::ScalarField, SynthesisError> {
-    let mut mul_vec = [h.msg.clone(), u.msg.clone()].concat();
-    mul_vec.push(sr.msg.clone()[0]);
-    let mut k = E::ScalarField::one();
-    for m_i in mul_vec.iter() {
+    let mut k = sr.msg.clone()[0] * h.rand.clone();
+    for m_i in u.msg.clone().iter() {
         k *= m_i;
     }
 
@@ -275,7 +244,7 @@ fn calculate_k<E: Pairing>(
 mod bls12_377 {
     use super::{calculate_k, ArithmCircuit};
     use crate::core::cc_snark::{prepare_verifying_key, CcGroth16};
-    use crate::core::pedersen::data_structure::{Parameters, Plaintext};
+    use crate::core::pedersen::data_structure::{Parameters, Plaintext, Randomness};
     use crate::core::pedersen::Pedersen;
     use ark_bls12_377::{
         constraints::{G1Var, PairingVar as EV},
@@ -319,15 +288,13 @@ mod bls12_377 {
 
         let (cm_sr, o_sr) = Pedersen::<E>::commit(pp.clone(), sr.clone(), &mut rng).unwrap();
 
-        let h =
-            Plaintext::<E>::from_plaintext_vec(vec![<E as Pairing>::ScalarField::rand(&mut rng)]);
+        let h = Randomness::<E>::to_rand(<E as Pairing>::ScalarField::rand(&mut rng));
 
-        let l =
-            Plaintext::<E>::from_plaintext_vec(vec![<E as Pairing>::ScalarField::rand(&mut rng)]);
+        let l = Randomness::<E>::to_rand(<E as Pairing>::ScalarField::rand(&mut rng));
 
         let k_vec = calculate_k::<E>(sr.clone(), h.clone(), u.clone()).unwrap();
 
-        let k = Plaintext::<E>::from_plaintext_vec(vec![k_vec]);
+        let k = Randomness::<E>::to_rand(k_vec);
 
         let circuit = ArithmCircuit::<E, EV>::new(
             pp.clone(),

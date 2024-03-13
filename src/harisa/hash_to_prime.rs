@@ -20,6 +20,7 @@ pub fn hash_to_prime<E: Pairing, R: Rng + RngCore + CryptoRng>(
 ) -> Result<E::ScalarField, SynthesisError> {
     // 기존 Harisa: Poseidon
     // 우리는? 그냥 bit transition & circuit에서 확인
+    // 현재는 그냥 둬도 상관 없을듯
 
     Ok(E::ScalarField::rand(rng))
 }

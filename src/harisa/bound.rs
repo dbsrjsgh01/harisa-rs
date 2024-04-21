@@ -2,36 +2,37 @@ use crate::core::pedersen::{
     circuit::{CommitmentVar, ParametersVar, PedersenGadget, PlaintextVar, RandomnessVar},
     data_structure::{Commitment, Parameters, Plaintext, Randomness},
 };
-use crate::BasePrimeField;
+use crate::ConstraintF;
 
-use ark_ec::pairing::Pairing;
+use ark_ec::CurveGroup;
 use ark_r1cs_std::{fields::fp::FpVar, pairing::PairingVar, prelude::*};
 use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError, SynthesisMode};
 use std::marker::PhantomData;
 
-pub struct BoundCircuit<E: Pairing, P: PairingVar<E, BasePrimeField<E>>> {
+#[derive(Clone)]
+pub struct BoundCircuit<C: CurveGroup, GG: CurveVar<C, ConstraintF<C>>> {
     // statements
-    pp: Parameters<E>,
-    cm_u: Commitment<E>,
-    p: Randomness<E>,
+    pp: Parameters<C>,
+    cm_u: Commitment<C>,
+    p: Randomness<C>,
 
     // witness
-    u: Plaintext<E>,
-    o_u: Randomness<E>,
-    _curve: PhantomData<P>,
+    u: Plaintext<C>,
+    o_u: Randomness<C>,
+    _curve: PhantomData<GG>,
 }
 
-impl<E, P> BoundCircuit<E, P>
+impl<C, GG> BoundCircuit<C, GG>
 where
-    E: Pairing,
-    P: PairingVar<E, BasePrimeField<E>>,
+    C: CurveGroup,
+    GG: CurveVar<C, ConstraintF<C>>,
 {
     pub fn new(
-        pp: Parameters<E>,
-        cm_u: Commitment<E>,
-        p: Randomness<E>,
-        u: Plaintext<E>,
-        o_u: Randomness<E>,
+        pp: Parameters<C>,
+        cm_u: Commitment<C>,
+        p: Randomness<C>,
+        u: Plaintext<C>,
+        o_u: Randomness<C>,
     ) -> Self {
         Self {
             pp: pp,
@@ -44,25 +45,25 @@ where
     }
 }
 
-pub struct BoundGadget<E: Pairing, P: PairingVar<E, BasePrimeField<E>>> {
-    pp: ParametersVar<E, P>,
-    cm_u: CommitmentVar<E, P>,
-    p: RandomnessVar<E, P>,
-    u: PlaintextVar<E, P>,
-    o_u: RandomnessVar<E, P>,
+pub struct BoundGadget<C: CurveGroup, GG: CurveVar<C, ConstraintF<C>>> {
+    pp: ParametersVar<C, GG>,
+    cm_u: CommitmentVar<C, GG>,
+    p: RandomnessVar<C, GG>,
+    u: PlaintextVar<C, GG>,
+    o_u: RandomnessVar<C, GG>,
 }
 
-impl<E, P> BoundGadget<E, P>
+impl<C, GG> BoundGadget<C, GG>
 where
-    E: Pairing,
-    P: PairingVar<E, BasePrimeField<E>>,
+    C: CurveGroup,
+    GG: CurveVar<C, ConstraintF<C>>,
 {
     fn new(
-        pp: ParametersVar<E, P>,
-        cm_u: CommitmentVar<E, P>,
-        p: RandomnessVar<E, P>,
-        u: PlaintextVar<E, P>,
-        o_u: RandomnessVar<E, P>,
+        pp: ParametersVar<C, GG>,
+        cm_u: CommitmentVar<C, GG>,
+        p: RandomnessVar<C, GG>,
+        u: PlaintextVar<C, GG>,
+        o_u: RandomnessVar<C, GG>,
     ) -> Self {
         Self {
             pp,
@@ -96,14 +97,14 @@ where
     }
 }
 
-impl<E, P> ConstraintSynthesizer<BasePrimeField<E>> for BoundCircuit<E, P>
+impl<C, GG> ConstraintSynthesizer<ConstraintF<C>> for BoundCircuit<C, GG>
 where
-    E: Pairing,
-    P: PairingVar<E, BasePrimeField<E>>,
+    C: CurveGroup,
+    GG: CurveVar<C, ConstraintF<C>>,
 {
     fn generate_constraints(
         self,
-        cs: ark_relations::r1cs::ConstraintSystemRef<BasePrimeField<E>>,
+        cs: ark_relations::r1cs::ConstraintSystemRef<ConstraintF<C>>,
     ) -> Result<(), SynthesisError> {
         let circuit_pp =
             ParametersVar::new_input(ark_relations::ns!(cs, "cpbound::crs"), || Ok(&self.pp))?;
@@ -123,61 +124,95 @@ where
         )?;
 
         let bound =
-            BoundGadget::<E, P>::new(circuit_pp, circuit_cm_u, circuit_p, circuit_u, circuit_o_u);
+            BoundGadget::<C, GG>::new(circuit_pp, circuit_cm_u, circuit_p, circuit_u, circuit_o_u);
 
         bound.cpbound()
     }
 }
 
 #[cfg(test)]
-mod bls12_377 {
+mod bound {
     use super::BoundCircuit;
     use crate::core::cc_snark::{prepare_verifying_key, CcGroth16};
-    use crate::core::pedersen::data_structure::{Plaintext, Randomness};
+    use crate::core::pedersen::data_structure::{Commitment, Parameters, Plaintext, Randomness};
     use crate::core::pedersen::Pedersen;
-    use ark_bls12_377::{
-        constraints::{G1Var, PairingVar as EV},
-        Bls12_377 as E, Config, Fr,
-    };
-    use ark_bw6_761::BW6_761 as P;
+    use crate::ConstraintF;
     use ark_crypto_primitives::snark::SNARK;
     use ark_ec::pairing::Pairing;
+    use ark_ec::CurveGroup;
+    use ark_r1cs_std::groups::CurveVar;
     use ark_std::{
         rand::{Rng, RngCore, SeedableRng},
         test_rng, One, UniformRand,
     };
 
-    #[test]
-    fn test_cp_bound_bls12_377() {
+    fn test_cp_bound<C: CurveGroup, GG: CurveVar<C, ConstraintF<C>>>() -> (
+        Parameters<C>,
+        Commitment<C>,
+        Randomness<C>,
+        Plaintext<C>,
+        Randomness<C>,
+    ) {
         let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
 
         let u_len = 8;
 
-        let pp = Pedersen::<E>::setup(u_len, &mut rng).unwrap();
+        let pp = Pedersen::<C>::setup(u_len, &mut rng).unwrap();
 
         let mut u_vec = Vec::new();
 
         for _ in 0..u_len {
-            let u_i = <E as Pairing>::ScalarField::rand(&mut rng);
+            let u_i = C::ScalarField::rand(&mut rng);
             u_vec.push(u_i);
         }
 
-        let u = Plaintext::<E>::from_plaintext_vec(u_vec);
+        let u = Plaintext::<C>::from_plaintext_vec(u_vec);
 
-        let (cm_u, o_u) = Pedersen::<E>::commit(pp.clone(), u.clone(), &mut rng).unwrap();
+        let (cm_u, o_u) = Pedersen::<C>::commit(pp.clone(), u.clone(), &mut rng).unwrap();
 
-        let p = Randomness::<E>::to_rand(<E as Pairing>::ScalarField::one());
+        let p = Randomness::<C>::to_rand(C::ScalarField::one());
 
-        let circuit =
-            BoundCircuit::<E, EV>::new(pp.clone(), cm_u.clone(), p.clone(), u.clone(), o_u.clone());
+        (pp, cm_u, p, u, o_u)
+    }
 
-        let (ek, vk) = CcGroth16::<P>::circuit_specific_setup(circuit, &mut rng).unwrap();
+    #[test]
+    fn test_cp_bound_circuit() {
+        use ark_bn254::Bn254;
+        use ark_ed_on_bn254::{constraints::EdwardsVar as GG, EdwardsProjective as C};
+        use ark_relations::r1cs::ConstraintSynthesizer;
+
+        let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
+
+        let (pp, cm_u, p, u, o_u) = test_cp_bound::<C, GG>();
+
+        let circuit = BoundCircuit::<C, GG>::new(pp, cm_u, p, u, o_u);
+
+        let (ek, _) =
+            CcGroth16::<Bn254>::circuit_specific_setup(circuit.clone(), &mut rng).unwrap();
+
+        let cs = ark_relations::r1cs::ConstraintSystem::new_ref();
+
+        circuit.clone().generate_constraints(cs.clone()).unwrap();
+        assert!(cs.is_satisfied().unwrap());
+    }
+
+    #[test]
+    fn test_cp_bound_groth16_bn254() {
+        use ark_bn254::Bn254;
+        use ark_ed_on_bn254::{constraints::EdwardsVar as GG, EdwardsProjective as C};
+
+        let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
+
+        let (pp, cm_u, p, u, o_u) = test_cp_bound::<C, GG>();
+
+        let circuit = BoundCircuit::<C, GG>::new(pp, cm_u, p, u, o_u);
+
+        let (ek, vk) =
+            CcGroth16::<Bn254>::circuit_specific_setup(circuit.clone(), &mut rng).unwrap();
         let pvk = prepare_verifying_key(&vk);
 
-        let circuit = BoundCircuit::<E, EV>::new(pp, cm_u, p, u, o_u);
+        let proof = CcGroth16::<Bn254>::prove(&ek, circuit, &mut rng).unwrap();
 
-        let proof = CcGroth16::<P>::prove(&ek, circuit, &mut rng).unwrap();
-
-        assert!(CcGroth16::<P>::verify_with_processed_vk(&pvk, &[], &proof).unwrap());
+        assert!(CcGroth16::<Bn254>::verify_with_processed_vk(&pvk, &[], &proof).unwrap());
     }
 }

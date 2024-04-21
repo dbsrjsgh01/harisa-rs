@@ -6,10 +6,11 @@ use crate::core::cc_snark::{
     CcGroth16,
 };
 use crate::core::pedersen::Pedersen;
-use crate::BasePrimeField;
+use crate::ConstraintF;
 
 use super::data_structure::HarisaPP;
-use super::Harisa;
+use super::harisa::Harisa;
+use super::preprocess::*;
 
 use ark_crypto_primitives::snark::*;
 use ark_ec::pairing::Pairing;
@@ -26,7 +27,7 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         rng: &mut R,
     ) -> Result<(ProvingKey<E>, VerifyingKey<E>), SynthesisError> {
         let cc_snark_generator = start_timer!(|| "ccGroth::Generator");
-        let (cc_ek, cc_vk) = CcGroth16::<E, QAP>::circuit_specific_setup(circuit, rng).unwrap();
+        let (cc_ek, cc_vk) = CcGroth16::<E>::circuit_specific_setup(circuit, rng).unwrap();
         end_timer!(cc_snark_generator);
         Ok((cc_ek, cc_vk))
     }
@@ -36,11 +37,12 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         Bound: ConstraintSynthesizer<E::ScalarField>,
         R: RngCore + CryptoRng + Rng,
     >(
-        num: usize,
+        set: Vec<E::ScalarField>,
         arithm_circuit: Arithm,
         bound_circuit: Bound,
         rng: &mut R,
-    ) -> Result<HarisaPP<E>, SynthesisError> {
+    ) -> Result<(HarisaPP<E>, Vec<E::G1Affine>), SynthesisError> {
+        let num = set.len();
         let harisa_generation = start_timer!(|| "HARiSA::Generator");
 
         let arithm_generation = start_timer!(|| "arithm::generator");
@@ -52,16 +54,22 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         let (bound_ek, bound_vk) = Self::generate_cc_snark_parameters(bound_circuit, rng).unwrap();
         end_timer!(bound_generation);
 
-        let cm_pp = Pedersen::<E>::setup(num + 1, rng).unwrap();
+        let cm_pp = Pedersen::<E::G1>::setup(num + 1, rng).unwrap();
 
         end_timer!(harisa_generation);
 
-        Ok(HarisaPP {
-            arithm_ek: arithm_ek.clone(),
-            arithm_vk: arithm_vk.clone(),
-            bound_ek: bound_ek.clone(),
-            bound_vk: bound_vk.clone(),
-            cm_pp,
-        })
+        let preprocessing = start_timer!(|| "HARiSA::Preprocess");
+        let table = preprocess::<E>(*cm_pp.g.first().unwrap(), set);
+
+        Ok((
+            HarisaPP {
+                arithm_ek: arithm_ek.clone(),
+                arithm_vk: arithm_vk.clone(),
+                bound_ek: bound_ek.clone(),
+                bound_vk: bound_vk.clone(),
+                cm_pp,
+            },
+            table,
+        ))
     }
 }

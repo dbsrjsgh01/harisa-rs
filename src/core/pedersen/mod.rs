@@ -2,39 +2,37 @@ pub mod circuit;
 pub mod data_structure;
 mod test;
 
-use ark_ec::pairing::Pairing;
+use std::marker::PhantomData;
+
+use ark_ec::CurveGroup;
 use ark_ff::{PrimeField, UniformRand};
-use ark_std::{rand::Rng, test_rng};
+use ark_std::rand::Rng;
 
 use self::data_structure::*;
 
 pub type Error = Box<dyn ark_std::error::Error>;
-
-pub struct Pedersen<E: Pairing> {
-    pub msg: Vec<E::ScalarField>,
-    pub rand: E::ScalarField,
+pub struct Pedersen<C: CurveGroup> {
+    _curve: PhantomData<C>,
 }
 
-impl<E: Pairing> Pedersen<E> {
-    // setup
-    pub fn setup<R: Rng>(n: usize, rng: &mut R) -> Result<Parameters<E>, Error> {
+impl<C: CurveGroup> Pedersen<C> {
+    pub fn setup<R: Rng>(n: usize, rng: &mut R) -> Result<Parameters<C>, Error> {
         let mut g = Vec::new();
         for i in 0..n {
-            let g_i = E::G1Affine::rand(rng);
+            let g_i = C::Affine::rand(rng);
             g.push(g_i);
         }
-        let h = E::G1Affine::rand(rng);
+        let h = C::Affine::rand(rng);
 
         Ok(Parameters { g, h })
     }
 
-    // commit
     pub fn commit<R: Rng>(
-        param: Parameters<E>,
-        msg: Plaintext<E>,
+        param: Parameters<C>,
+        msg: Plaintext<C>,
         rng: &mut R,
-    ) -> Result<(Commitment<E>, Randomness<E>), Error> {
-        let r = E::ScalarField::rand(rng);
+    ) -> Result<(Commitment<C>, Randomness<C>), Error> {
+        let r = C::ScalarField::rand(rng);
         let mut cm = param.h * r;
         for (g_i, m_i) in param.g.iter().zip(msg.msg.into_iter()) {
             cm = cm + (g_i.clone() * m_i.clone());
@@ -44,17 +42,16 @@ impl<E: Pairing> Pedersen<E> {
     }
 
     pub fn verify(
-        param: Parameters<E>,
-        msg: Plaintext<E>,
-        cm: Commitment<E>,
-        rand: Randomness<E>,
+        param: Parameters<C>,
+        msg: Plaintext<C>,
+        cm: Commitment<C>,
+        rand: Randomness<C>,
     ) -> Result<bool, Error> {
         let r = rand.rand;
         let mut res = param.h * r;
         for (g_i, m_i) in param.g.iter().zip(msg.msg.into_iter()) {
             res = res + (g_i.clone() * m_i.clone());
         }
-
         Ok(cm.cm == res.into())
     }
 }

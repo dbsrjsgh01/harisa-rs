@@ -50,18 +50,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ark-bw6-761"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e0605daf0cc5aa2034b78d008aaf159f56901d92a52ee4f6ecdfdac4f426700"
-dependencies = [
- "ark-bls12-377",
- "ark-ec 0.4.2",
- "ark-ff 0.4.2",
- "ark-std 0.4.0",
-]
-
-[[package]]
 name = "ark-crypto-primitives"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -136,6 +124,7 @@ dependencies = [
  "ark-bn254",
  "ark-ec 0.4.2",
  "ark-ff 0.4.2",
+ "ark-r1cs-std 0.4.0",
  "ark-std 0.4.0",
 ]
 
@@ -221,31 +210,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "ark-mnt4-298"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ecb284f9f38cbedcae7e78f33e9a1f813db4e6b8103dacc3a143c2ddf32941aa"
-dependencies = [
- "ark-ec 0.4.2",
- "ark-ff 0.4.2",
- "ark-r1cs-std 0.4.0",
- "ark-std 0.4.0",
-]
-
-[[package]]
-name = "ark-mnt6-298"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b476521074ed1ccfec7277bbe5c6fcf76be15fe1aa63f23f2545f0c8ae6ae73"
-dependencies = [
- "ark-ec 0.4.2",
- "ark-ff 0.4.2",
- "ark-mnt4-298",
- "ark-r1cs-std 0.4.0",
- "ark-std 0.4.0",
 ]
 
 [[package]]
@@ -654,14 +618,11 @@ dependencies = [
  "ark-bls12-377",
  "ark-bls12-381",
  "ark-bn254",
- "ark-bw6-761",
  "ark-crypto-primitives",
  "ark-ec 0.4.2",
  "ark-ed-on-bls12-381",
  "ark-ed-on-bn254",
  "ark-ff 0.4.2",
- "ark-mnt4-298",
- "ark-mnt6-298",
  "ark-poly",
  "ark-r1cs-std 0.4.0",
  "ark-relations 0.4.0",

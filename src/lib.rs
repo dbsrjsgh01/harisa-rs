@@ -10,6 +10,7 @@
 
 pub mod core;
 pub mod harisa;
+pub mod lookup;
 
 pub use ark_crypto_primitives::*;
 pub use ark_ec::*;
@@ -18,8 +19,7 @@ pub use ark_poly::*;
 
 pub use pairing::*;
 
-pub(crate) type BasePrimeField<E> =
-    <<<E as Pairing>::G1 as CurveGroup>::BaseField as Field>::BasePrimeField;
+pub(crate) type ConstraintF<C> = <<C as CurveGroup>::BaseField as Field>::BasePrimeField;
 
 #[macro_use]
 extern crate ark_std;

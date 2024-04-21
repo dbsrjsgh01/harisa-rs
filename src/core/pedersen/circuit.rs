@@ -1,11 +1,12 @@
 use super::data_structure::{Commitment, Parameters, Plaintext, Randomness};
-use crate::BasePrimeField;
+use crate::ConstraintF;
+use ark_ec::CurveGroup;
 
-use ark_ec::pairing::Pairing;
 use ark_ff::{
     fields::{Field, PrimeField},
     BigInteger,
 };
+
 use ark_r1cs_std::{
     alloc::{AllocVar, AllocationMode},
     eq::EqGadget,
@@ -18,19 +19,24 @@ use ark_relations::r1cs::{ConstraintSynthesizer, Namespace, SynthesisError};
 use ark_std::{borrow::Borrow, vec::Vec};
 use std::marker::PhantomData;
 
-#[derive(Clone)]
-pub struct ParametersVar<E: Pairing, P: PairingVar<E, BasePrimeField<E>>> {
-    pub g: Vec<P::G1Var>,
-    pub h: P::G1Var,
+// AllocVar<E::G1Affine, BasePrimeField<E>>
+
+#[derive(Clone, Debug)]
+pub struct ParametersVar<C: CurveGroup, GG: CurveVar<C, ConstraintF<C>>> {
+    pub g: Vec<GG>,
+    pub h: GG,
+
+    #[doc(hidden)]
+    _curve: PhantomData<C>,
 }
 
-impl<E, P> AllocVar<Parameters<E>, BasePrimeField<E>> for ParametersVar<E, P>
+impl<C, GG> AllocVar<Parameters<C>, ConstraintF<C>> for ParametersVar<C, GG>
 where
-    E: Pairing,
-    P: PairingVar<E, BasePrimeField<E>>,
+    C: CurveGroup,
+    GG: CurveVar<C, ConstraintF<C>>,
 {
-    fn new_variable<T: Borrow<Parameters<E>>>(
-        cs: impl Into<Namespace<BasePrimeField<E>>>,
+    fn new_variable<T: Borrow<Parameters<C>>>(
+        cs: impl Into<Namespace<ConstraintF<C>>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
@@ -42,25 +48,30 @@ where
 
             let g = Vec::new_variable(ark_relations::ns!(cs, "pp g"), || Ok(g), mode)?;
 
-            let h = P::G1Var::new_variable(ark_relations::ns!(cs, "pp h"), || Ok(h), mode)?;
+            let h = GG::new_variable(ark_relations::ns!(cs, "pp h"), || Ok(h), mode)?;
 
-            Ok(Self { g, h })
+            Ok(Self {
+                g,
+                h,
+                _curve: PhantomData,
+            })
         })
     }
 }
 
-pub struct PlaintextVar<E: Pairing, P: PairingVar<E, BasePrimeField<E>>> {
-    pub msg: Vec<FpVar<BasePrimeField<E>>>,
-    _pairing: PhantomData<P>,
+pub struct PlaintextVar<C: CurveGroup, GG: CurveVar<C, ConstraintF<C>>> {
+    pub msg: Vec<FpVar<ConstraintF<C>>>,
+    #[doc(hidden)]
+    _curve: PhantomData<GG>,
 }
 
-impl<E, P> AllocVar<Plaintext<E>, BasePrimeField<E>> for PlaintextVar<E, P>
+impl<C, GG> AllocVar<Plaintext<C>, ConstraintF<C>> for PlaintextVar<C, GG>
 where
-    E: Pairing,
-    P: PairingVar<E, BasePrimeField<E>>,
+    C: CurveGroup,
+    GG: CurveVar<C, ConstraintF<C>>,
 {
-    fn new_variable<T: Borrow<Plaintext<E>>>(
-        cs: impl Into<Namespace<BasePrimeField<E>>>,
+    fn new_variable<T: Borrow<Plaintext<C>>>(
+        cs: impl Into<Namespace<ConstraintF<C>>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
@@ -74,14 +85,14 @@ where
 
             for m_i in msg.iter() {
                 let mut m_bits = m_i.into_bigint().to_bits_le();
-                m_bits.truncate(E::ScalarField::MODULUS_BIT_SIZE as usize);
-                for _ in m_bits.len()..E::ScalarField::MODULUS_BIT_SIZE as usize {
+                m_bits.truncate(C::ScalarField::MODULUS_BIT_SIZE as usize);
+                for _ in m_bits.len()..C::ScalarField::MODULUS_BIT_SIZE as usize {
                     m_bits.push(false);
                 }
                 m_bits.reverse();
 
-                let elem = BasePrimeField::<E>::from_bigint(
-                    <BasePrimeField<E> as PrimeField>::BigInt::from_bits_be(&m_bits),
+                let elem = ConstraintF::<C>::from_bigint(
+                    <ConstraintF<C> as PrimeField>::BigInt::from_bits_be(&m_bits),
                 )
                 .unwrap();
                 msg_vec.push(elem);
@@ -90,24 +101,27 @@ where
             let msg = Vec::new_variable(ark_relations::ns!(cs, "msg"), || Ok(msg_vec), mode)?;
 
             Ok(Self {
-                msg: msg,
-                _pairing: PhantomData,
+                msg,
+                _curve: PhantomData,
             })
         })
     }
 }
 
-pub struct CommitmentVar<E: Pairing, P: PairingVar<E, BasePrimeField<E>>> {
-    pub cm: P::G1Var,
+pub struct CommitmentVar<C: CurveGroup, GG: CurveVar<C, ConstraintF<C>>> {
+    pub cm: GG,
+
+    #[doc(hidden)]
+    _curve: PhantomData<C>,
 }
 
-impl<E, P> AllocVar<Commitment<E>, BasePrimeField<E>> for CommitmentVar<E, P>
+impl<C, GG> AllocVar<Commitment<C>, ConstraintF<C>> for CommitmentVar<C, GG>
 where
-    E: Pairing,
-    P: PairingVar<E, BasePrimeField<E>>,
+    C: CurveGroup,
+    GG: CurveVar<C, ConstraintF<C>>,
 {
-    fn new_variable<T: Borrow<Commitment<E>>>(
-        cs: impl Into<Namespace<BasePrimeField<E>>>,
+    fn new_variable<T: Borrow<Commitment<C>>>(
+        cs: impl Into<Namespace<ConstraintF<C>>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
@@ -117,25 +131,28 @@ where
         f().and_then(|cm| {
             let Commitment { cm } = cm.borrow().clone();
 
-            let cm = P::G1Var::new_variable(ark_relations::ns!(cs, "cm"), || Ok(cm), mode)?;
+            let cm = GG::new_variable(ark_relations::ns!(cs, "cm"), || Ok(cm), mode)?;
 
-            Ok(CommitmentVar { cm })
+            Ok(CommitmentVar {
+                cm,
+                _curve: PhantomData,
+            })
         })
     }
 }
 
-pub struct RandomnessVar<E: Pairing, P: PairingVar<E, BasePrimeField<E>>> {
-    pub rand: FpVar<BasePrimeField<E>>,
-    _curve: PhantomData<P>,
+pub struct RandomnessVar<C: CurveGroup, GG: CurveVar<C, ConstraintF<C>>> {
+    pub rand: FpVar<ConstraintF<C>>,
+    _curve: PhantomData<GG>,
 }
 
-impl<E, P> AllocVar<Randomness<E>, BasePrimeField<E>> for RandomnessVar<E, P>
+impl<C, GG> AllocVar<Randomness<C>, ConstraintF<C>> for RandomnessVar<C, GG>
 where
-    E: Pairing,
-    P: PairingVar<E, BasePrimeField<E>>,
+    C: CurveGroup,
+    GG: CurveVar<C, ConstraintF<C>>,
 {
-    fn new_variable<T: Borrow<Randomness<E>>>(
-        cs: impl Into<Namespace<BasePrimeField<E>>>,
+    fn new_variable<T: Borrow<Randomness<C>>>(
+        cs: impl Into<Namespace<ConstraintF<C>>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> Result<Self, SynthesisError> {
@@ -146,18 +163,18 @@ where
             let Randomness { rand } = rand.borrow().clone();
 
             let mut rand_bits = rand.into_bigint().to_bits_le();
-            rand_bits.truncate(E::ScalarField::MODULUS_BIT_SIZE as usize);
-            for _ in rand_bits.len()..E::ScalarField::MODULUS_BIT_SIZE as usize {
+            rand_bits.truncate(C::ScalarField::MODULUS_BIT_SIZE as usize);
+            for _ in rand_bits.len()..C::ScalarField::MODULUS_BIT_SIZE as usize {
                 rand_bits.push(false);
             }
             rand_bits.reverse();
 
-            let elem = BasePrimeField::<E>::from_bigint(
-                <BasePrimeField<E> as PrimeField>::BigInt::from_bits_be(&rand_bits),
+            let elem = ConstraintF::<C>::from_bigint(
+                <ConstraintF<C> as PrimeField>::BigInt::from_bits_be(&rand_bits),
             )
             .unwrap();
 
-            let r = FpVar::<BasePrimeField<E>>::new_variable(
+            let r = FpVar::<ConstraintF<C>>::new_variable(
                 ark_relations::ns!(cs, "rand"),
                 || Ok(elem),
                 mode,
@@ -171,52 +188,54 @@ where
     }
 }
 
-pub struct PedersenCircuit<E: Pairing, P: PairingVar<E, BasePrimeField<E>>> {
-    pub pp: Parameters<E>,
-    pub pt: Plaintext<E>,
-    pub cm: Commitment<E>,
-    pub rand: Randomness<E>,
-    _pairing: PhantomData<P>,
+#[derive(Clone)]
+pub struct PedersenCircuit<C: CurveGroup, GG: CurveVar<C, ConstraintF<C>>> {
+    pub pp: Parameters<C>,
+    pub pt: Plaintext<C>,
+    pub cm: Commitment<C>,
+    pub rand: Randomness<C>,
+    #[doc(hidden)]
+    pub _curve: PhantomData<GG>,
 }
 
-impl<E, P> PedersenCircuit<E, P>
+impl<C, GG> PedersenCircuit<C, GG>
 where
-    E: Pairing,
-    P: PairingVar<E, BasePrimeField<E>>,
+    C: CurveGroup,
+    GG: CurveVar<C, ConstraintF<C>>,
 {
     pub fn new(
-        pp: Parameters<E>,
-        cm: Commitment<E>,
-        pt: Plaintext<E>,
-        rand: Randomness<E>,
+        pp: Parameters<C>,
+        cm: Commitment<C>,
+        pt: Plaintext<C>,
+        rand: Randomness<C>,
     ) -> Self {
         Self {
             pp,
             pt,
             cm,
             rand,
-            _pairing: PhantomData,
+            _curve: PhantomData,
         }
     }
 }
 
-pub struct PedersenGadget<E: Pairing, P: PairingVar<E, BasePrimeField<E>>> {
-    pp: ParametersVar<E, P>,
-    cm: CommitmentVar<E, P>,
-    pt: PlaintextVar<E, P>,
-    rand: RandomnessVar<E, P>,
+pub struct PedersenGadget<C: CurveGroup, GG: CurveVar<C, ConstraintF<C>>> {
+    pp: ParametersVar<C, GG>,
+    cm: CommitmentVar<C, GG>,
+    pt: PlaintextVar<C, GG>,
+    rand: RandomnessVar<C, GG>,
 }
 
-impl<E, P> PedersenGadget<E, P>
+impl<C, GG> PedersenGadget<C, GG>
 where
-    E: Pairing,
-    P: PairingVar<E, BasePrimeField<E>>,
+    C: CurveGroup,
+    GG: CurveVar<C, ConstraintF<C>>,
 {
     fn new(
-        pp: ParametersVar<E, P>,
-        cm: CommitmentVar<E, P>,
-        pt: PlaintextVar<E, P>,
-        rand: RandomnessVar<E, P>,
+        pp: ParametersVar<C, GG>,
+        cm: CommitmentVar<C, GG>,
+        pt: PlaintextVar<C, GG>,
+        rand: RandomnessVar<C, GG>,
     ) -> Self {
         Self { pp, cm, pt, rand }
     }
@@ -243,14 +262,14 @@ where
     }
 }
 
-impl<E, P> ConstraintSynthesizer<BasePrimeField<E>> for PedersenCircuit<E, P>
+impl<C, GG> ConstraintSynthesizer<ConstraintF<C>> for PedersenCircuit<C, GG>
 where
-    E: Pairing,
-    P: PairingVar<E, BasePrimeField<E>>,
+    C: CurveGroup,
+    GG: CurveVar<C, ConstraintF<C>>,
 {
     fn generate_constraints(
         self,
-        cs: ark_relations::r1cs::ConstraintSystemRef<BasePrimeField<E>>,
+        cs: ark_relations::r1cs::ConstraintSystemRef<ConstraintF<C>>,
     ) -> Result<(), SynthesisError> {
         let circuit_pp =
             ParametersVar::new_input(ark_relations::ns!(cs, "param"), || Ok(&self.pp))?;
@@ -267,7 +286,7 @@ where
                 .unwrap();
 
         let pedersen =
-            PedersenGadget::<E, P>::new(circuit_pp, circuit_cm, circuit_pt, circuit_rand);
+            PedersenGadget::<C, GG>::new(circuit_pp, circuit_cm, circuit_pt, circuit_rand);
 
         pedersen.commit()
     }

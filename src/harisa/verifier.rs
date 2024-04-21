@@ -1,5 +1,5 @@
 use crate::core::{cc_snark::CcGroth16, pedersen::data_structure::Commitment};
-use crate::BasePrimeField;
+use crate::ConstraintF;
 
 use ark_ec::pairing::Pairing;
 use ark_r1cs_std::pairing::PairingVar;
@@ -10,14 +10,14 @@ use super::prepare_verifying_key;
 use super::r1cs_to_qap::R1CSToQAP;
 use super::{
     data_structure::{HarisaPP, HarisaProof},
-    Harisa,
+    harisa::Harisa,
 };
 
 impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
     pub fn harisa_verify(
         pp: HarisaPP<E>,
-        accum: Vec<E::ScalarField>,
-        c_u: Commitment<E>,
+        accum: E::G1Affine,
+        c_u: Commitment<E::G1>,
         proof: HarisaProof<E>,
     ) -> Result<bool, SynthesisError> {
         // 1. acc_hat = acc^prod_pi

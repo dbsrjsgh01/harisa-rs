@@ -1,68 +1,71 @@
 use crate::core::pedersen::{Commitment, Parameters, Pedersen, Plaintext, Randomness};
-use ark_ec::pairing::Pairing;
+use ark_ec::CurveGroup;
 use ark_std::rand::{RngCore, SeedableRng};
 use ark_std::{test_rng, UniformRand};
 
-fn test_commit<E: Pairing>(
+fn test_commit<C: CurveGroup>(
     n: usize,
-) -> (Parameters<E>, Commitment<E>, Plaintext<E>, Randomness<E>) {
+) -> (Parameters<C>, Commitment<C>, Plaintext<C>, Randomness<C>) {
     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
 
-    let pp = Pedersen::<E>::setup(n, &mut rng).unwrap();
+    let pp = Pedersen::<C>::setup(n, &mut rng).unwrap();
 
     let mut msg = Vec::new();
     for _ in 0..n {
-        let m_i = E::ScalarField::rand(&mut rng);
+        let m_i = C::ScalarField::rand(&mut rng);
         msg.push(m_i);
     }
 
-    let pt = Plaintext::<E>::from_plaintext_vec(msg);
+    let pt = Plaintext::<C>::from_plaintext_vec(msg);
 
-    let (cm, r) = Pedersen::<E>::commit(pp.clone(), pt.clone(), &mut rng).unwrap();
+    let (cm, r) = Pedersen::<C>::commit(pp.clone(), pt.clone(), &mut rng).unwrap();
 
-    assert!(Pedersen::<E>::verify(pp.clone(), pt.clone(), cm.clone(), r.clone()).unwrap());
+    assert!(Pedersen::<C>::verify(pp.clone(), pt.clone(), cm.clone(), r.clone()).unwrap());
 
     (pp, cm, pt, r)
 }
 
 mod pedersen {
     use super::test_commit;
-    use ark_bls12_381::Bls12_381;
+    use crate::core::{
+        cc_snark::{prepare_verifying_key, CcGroth16},
+        pedersen::circuit::PedersenCircuit,
+    };
     use ark_crypto_primitives::snark::SNARK;
     use ark_std::{
         rand::{Rng, RngCore, SeedableRng},
         test_rng,
     };
+    use std::marker::PhantomData;
 
     #[test]
-    fn test_pedersen_commitment_bls12_381() {
-        test_commit::<Bls12_381>(8);
+    fn test_pedersen_commitment_bn254() {
+        use ark_ed_on_bn254::EdwardsProjective as C;
+        test_commit::<C>(8);
     }
 
     #[test]
-    fn test_cc_groth16_pedersen_bls12_377() {
-        use crate::core::cc_snark::{prepare_verifying_key, CcGroth16};
-        use crate::core::pedersen::circuit::PedersenCircuit;
-        use ark_bls12_377::{
-            constraints::{G1Var, PairingVar as EV},
-            Bls12_377 as E, Config, Fr,
+    fn test_pedersen_commitment_groth16_bn254() {
+        use ark_bn254::Bn254;
+        use ark_ed_on_bn254::{constraints::EdwardsVar as GG, EdwardsProjective as C};
+
+        let rng = &mut ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
+
+        let (pp, cm, pt, rand) = test_commit::<C>(8);
+
+        let circuit = PedersenCircuit::<C, GG> {
+            pp,
+            pt,
+            cm,
+            rand,
+            _curve: PhantomData,
         };
-        use ark_bw6_761::BW6_761 as P;
 
-        let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
+        let (pk, vk) = CcGroth16::<Bn254>::circuit_specific_setup(circuit.clone(), rng).unwrap();
+        let pvk = prepare_verifying_key(&vk);
 
-        let (pp, cm, pt, rand) = test_commit::<E>(8);
+        let proof = CcGroth16::<Bn254>::prove(&pk, circuit, rng).unwrap();
 
-        let circuit =
-            PedersenCircuit::<E, EV>::new(pp.clone(), cm.clone(), pt.clone(), rand.clone());
-
-        let (ek, vk) = CcGroth16::<P>::circuit_specific_setup(circuit, &mut rng).unwrap();
-        let pvk = prepare_verifying_key::<P>(&vk);
-
-        let circuit = PedersenCircuit::<E, EV>::new(pp, cm, pt, rand);
-
-        let proof = CcGroth16::<P>::prove(&ek, circuit, &mut rng).unwrap();
-
-        assert!(CcGroth16::<P>::verify_with_processed_vk(&pvk, &[], &proof).unwrap());
+        assert!(CcGroth16::<Bn254>::verify_with_processed_vk(&pvk, &[], &proof).unwrap())
     }
 }

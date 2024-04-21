@@ -16,6 +16,7 @@ use std::{
     ops::{AddAssign, Mul, MulAssign},
 };
 
+// Fq와 Fr을 맞춰주는 법....
 pub struct ArithmGadget<C: CurveGroup, GG: CurveVar<C, ConstraintF<C>>> {
     // statements
     pub pp: ParametersVar<C, GG>,
@@ -98,9 +99,6 @@ where
         // 3. k == s * h * u + r mod l
         let computed_k: FpVar<ConstraintF<C>> = self.compute_k();
         self.k.rand.enforce_equal(&computed_k)?;
-
-        println!("k: \t{:?}", self.k.rand.value());
-        println!("com_k: \t{:?}", computed_k.value());
 
         Ok(())
     }
@@ -230,6 +228,7 @@ mod arithm {
     use crate::core::cc_snark::{prepare_verifying_key, CcGroth16};
     use crate::core::pedersen::data_structure::{Commitment, Parameters, Plaintext, Randomness};
     use crate::core::pedersen::Pedersen;
+    use crate::harisa::constants::*;
     use crate::ConstraintF;
     use ark_crypto_primitives::snark::SNARK;
     use ark_ec::pairing::Pairing;
@@ -260,10 +259,12 @@ mod arithm {
 
         let pp = Pedersen::<C>::setup(u_len, &mut rng).unwrap();
 
-        let h = Randomness::<C>::to_rand(C::ScalarField::rand(&mut rng));
+        // let h = Randomness::<C>::to_rand(C::ScalarField::rand(&mut rng));
 
-        let field_s = C::ScalarField::rand(&mut rng);
-        let field_r = C::ScalarField::rand(&mut rng);
+        let h = Randomness::<C>::to_rand(C::ScalarField::from(2u64));
+
+        let field_s = C::ScalarField::from(2u64);
+        let field_r = C::ScalarField::from(2u64);
 
         let s = Randomness::<C>::to_rand(field_s);
         let r = Randomness::<C>::to_rand(field_r);
@@ -279,8 +280,9 @@ mod arithm {
 
         let mut u_vec = Vec::new();
 
-        for _ in 0..u_len {
-            let u_i = C::ScalarField::rand(&mut rng);
+        for i in 0..u_len {
+            // let u_i = C::ScalarField::rand(&mut rng);
+            let u_i = C::ScalarField::from(ODD_PRIME[i]);
             field_k *= u_i.clone();
             u_vec.push(u_i);
         }
@@ -294,10 +296,12 @@ mod arithm {
         let (cm_u, o_u) = Pedersen::<C>::commit(pp.clone(), u.clone(), &mut rng).unwrap();
 
         let l = Randomness::<C>::to_rand(C::ScalarField::rand(&mut rng));
+
         assert!(
             Pedersen::<C>::verify(pp.clone(), u.clone(), cm_u.clone(), o_u.clone()).unwrap(),
             "Invalid Commitment (u)"
         );
+
         assert!(
             Pedersen::<C>::verify(
                 pp.clone(),
@@ -312,29 +316,29 @@ mod arithm {
         (pp, cm_u, cm_sr, h, l, k, u, s, r, o_u, o_sr)
     }
 
+    const U_LEN: usize = 32;
+
     #[test]
     fn test_cp_arithm_bn254() {
         use ark_ed_on_bn254::EdwardsProjective as C;
-        test_cp_arithm::<C>(8);
+        test_cp_arithm::<C>(U_LEN);
     }
 
     #[test]
     fn test_cp_arithm_cc_groth16_bn254() {
         use crate::core::pedersen::Pedersen;
-        use ark_bn254::{Bn254, Fr};
+        use ark_bn254::Bn254;
         use ark_ed_on_bn254::{constraints::EdwardsVar as GG, EdwardsProjective as C};
 
         let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
 
-        let u_len = 8;
-
-        let (pp, cm_u, cm_sr, h, l, k, u, s, r, o_u, o_sr) = test_cp_arithm::<C>(u_len);
+        let (pp, cm_u, cm_sr, h, l, k, u, s, r, o_u, o_sr) = test_cp_arithm::<C>(U_LEN);
 
         let circuit = ArithmCircuit::<C, GG>::new(pp, cm_u, cm_sr, h, l, k, u, s, r, o_u, o_sr);
 
         let (ek, vk) =
             CcGroth16::<Bn254>::circuit_specific_setup(circuit.clone(), &mut rng).unwrap();
-        let pvk = prepare_verifying_key(&vk);
+        let pvk = prepare_verifying_key::<Bn254>(&vk);
 
         let proof = CcGroth16::<Bn254>::prove(&ek, circuit, &mut rng).unwrap();
 
@@ -344,7 +348,7 @@ mod arithm {
     #[test]
     fn test_cp_arithm_bls12_381() {
         use ark_ed_on_bls12_381::EdwardsProjective as C;
-        test_cp_arithm::<C>(8);
+        test_cp_arithm::<C>(U_LEN);
     }
 
     #[test]
@@ -355,9 +359,7 @@ mod arithm {
 
         let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
 
-        let u_len = 8;
-
-        let (pp, cm_u, cm_sr, h, l, k, u, s, r, o_u, o_sr) = test_cp_arithm::<C>(u_len);
+        let (pp, cm_u, cm_sr, h, l, k, u, s, r, o_u, o_sr) = test_cp_arithm::<C>(U_LEN);
 
         let circuit = ArithmCircuit::<C, GG>::new(pp, cm_u, cm_sr, h, l, k, u, s, r, o_u, o_sr);
 

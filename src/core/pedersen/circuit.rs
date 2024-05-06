@@ -19,8 +19,6 @@ use ark_relations::r1cs::{ConstraintSynthesizer, Namespace, SynthesisError};
 use ark_std::{borrow::Borrow, vec::Vec};
 use std::marker::PhantomData;
 
-// AllocVar<E::G1Affine, BasePrimeField<E>>
-
 #[derive(Clone, Debug)]
 pub struct ParametersVar<C: CurveGroup, GG: CurveVar<C, ConstraintF<C>>> {
     pub g: Vec<GG>,
@@ -59,6 +57,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub struct PlaintextVar<C: CurveGroup, GG: CurveVar<C, ConstraintF<C>>> {
     pub msg: Vec<FpVar<ConstraintF<C>>>,
     #[doc(hidden)]

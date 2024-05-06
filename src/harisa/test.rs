@@ -6,11 +6,13 @@ use crate::{
         data_structure::{Commitment, Parameters, Plaintext, Randomness},
         Pedersen,
     },
-    harisa::{arithm::ArithmCircuit, bound::BoundCircuit, Harisa},
-    BasePrimeField,
+    harisa::{arithm::ArithmCircuit, bound::BoundCircuit, harisa::Harisa},
+    ConstraintF,
 };
 use ark_ec::pairing::Pairing;
+use ark_ff::Field;
 use ark_r1cs_std::pairing::PairingVar;
+use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 use ark_std::{
     rand::{CryptoRng, Rng, RngCore, SeedableRng},
     test_rng, UniformRand,
@@ -18,120 +20,62 @@ use ark_std::{
 
 use super::prepare_verifying_key;
 
-fn test_harisa<E: Pairing, P: PairingVar<E, BasePrimeField<E>>>(n: usize) {
+const SET_SIZE: usize = 32;
+
+#[allow(non_camel_case_types)]
+struct TestCircuit<F: Field> {
+    msg_vec: [Option<F>; SET_SIZE],
+}
+
+impl<ConstraintF: Field> ConstraintSynthesizer<ConstraintF> for TestCircuit<ConstraintF> {
+    fn generate_constraints(
+        self,
+        cs: ConstraintSystemRef<ConstraintF>,
+    ) -> Result<(), SynthesisError> {
+        for (idx, msg) in self.msg_vec.iter().enumerate() {
+            cs.new_input_variable(|| msg.ok_or(SynthesisError::AssignmentMissing))?;
+        }
+        Ok(())
+    }
+}
+
+fn test_harisa<E: Pairing, P: PairingVar<E, ConstraintF<E::G1>>>(set: Vec<E::ScalarField>) {
     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
 
-    let cm_pp = Pedersen::<E>::setup(n, &mut rng).unwrap();
-
-    let mut msg = Vec::new();
-    for _ in 0..n {
-        let m_i = E::ScalarField::rand(&mut rng);
-        msg.push(m_i);
-    }
-
-    let u = Plaintext::<E>::from_plaintext_vec(msg.clone());
-
-    let (cm_u, o_u) = Pedersen::<E>::commit(cm_pp.clone(), u.clone(), &mut rng).unwrap();
-
-    let mut sr_vec = Vec::new();
-    for _ in 0..2 {
-        let m_i = E::ScalarField::rand(&mut rng);
-        sr_vec.push(m_i);
-    }
-
-    let sr = Plaintext::<E>::from_plaintext_vec(sr_vec);
-
-    let (cm_sr, o_sr) = Pedersen::<E>::commit(cm_pp.clone(), sr.clone(), &mut rng).unwrap();
-
-    // h, l, k, p
-    let h = Randomness::<E>::to_rand(<E as Pairing>::ScalarField::rand(&mut rng));
-
-    let l = Randomness::<E>::to_rand(<E as Pairing>::ScalarField::rand(&mut rng));
-
-    let k = Randomness::<E>::to_rand(calculate_k::<E>(sr.clone(), h.clone(), u.clone()).unwrap());
-
-    let p = Randomness::<E>::to_rand(<E as Pairing>::ScalarField::one());
-
-    let arithm_circuit = ArithmCircuit::<E, P>::new(
-        cm_pp.clone(),
-        cm_u.clone(),
-        cm_sr.clone(),
-        h.clone(),
-        l.clone(),
-        k.clone(),
-        u.clone(),
-        o_u.clone(),
-        sr.clone(),
-        o_sr.clone(),
-    );
-
-    let bound_circuit = BoundCircuit::<E, P>::new(
-        cm_pp.clone(),
-        cm_u.clone(),
-        p.clone(),
-        u.clone(),
-        o_u.clone(),
-    );
-
-    let harisa_pp =
-        Harisa::<E>::generate_harisa_parameters(n, arithm_circuit, bound_circuit, &mut rng)
-            .unwrap();
-
-    let arithm_circuit = ArithmCircuit::<E, P>::new(
-        cm_pp.clone(),
-        cm_u.clone(),
-        cm_sr.clone(),
-        h.clone(),
-        l.clone(),
-        k.clone(),
-        u.clone(),
-        o_u.clone(),
-        sr.clone(),
-        o_sr.clone(),
-    );
-
-    let bound_circuit = BoundCircuit::<E, P>::new(
-        cm_pp.clone(),
-        cm_u.clone(),
-        p.clone(),
-        u.clone(),
-        o_u.clone(),
-    );
-
-    let proof = Harisa::<E>::generate_harisa_proof(
-        &harisa_pp,
-        accum,
-        cm_u,
-        w,
-        u,
-        o_u,
-        p,
-        arithm_circuit,
-        bound_circuit,
+    // setup
+    let (pp, tree) = Harisa::<E>::generate_harisa_parameters(
+        set,
+        TestCircuit {
+            msg_vec: [None; SET_SIZE],
+        },
+        TestCircuit {
+            msg_vec: [None; SET_SIZE],
+        },
         &mut rng,
     )
     .unwrap();
 
-    assert!(Harisa::<E>::harisa_verify(harisa_pp, accum, c_u, proof).unwrap());
-}
+    // u commit
+    let u_vec = Vec::new();
+    let u = Plaintext::<E::G1>::from_plaintext_vec(u_vec);
+    let (cm_u, o_u) = Pedersen::<E::G1>::commit(pp.cm_pp.clone(), u.clone(), &mut rng).unwrap();
 
-mod arithm {
-    use super::test_harisa;
-    use ark_crypto_primitives::snark::SNARK;
-    use ark_ec::bls12::Bls12;
+    let accum = tree[0];
 
-    #[test]
-    fn test_cc_groth16_arithm_bls12_377() {
-        use crate::core::cc_snark::{prepare_verifying_key, CcGroth16};
-        use crate::core::pedersen::Pedersen;
-        use crate::harisa::arithm::ArithmCircuit;
-        use ark_bls12_377::{
-            constraints::{G1Var, PairingVar as EV},
-            Bls12_377 as E, Config, Fr,
-        };
-        use ark_bw6_761::BW6_761 as P;
-        use ark_ec::pairing::Pairing;
+    // prove
+    // let prf = Harisa::<E>::generate_harisa_opt_proof(
+    //     pp.clone(),
+    //     accum,
+    //     cm_u.clone(),
+    //     u.clone(),
+    //     o_u.clone(),
+    //     &mut rng,
+    // )
+    // .unwrap();
 
-        test_harisa::<E, EV>(8);
-    }
+    // // verify
+    // assert!(
+    //     Harisa::<E>::harisa_verify(pp, accum, cm_u, proof).unwrap(),
+    //     "Verify Failed"
+    // );
 }

@@ -199,13 +199,13 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
             }
             w.truncate(w_len);
         }
-        let w_u = w.first().unwrap();
+        let w_u = *w.first().unwrap();
 
         let proof = Self::generate_harisa_proof(
             pp,
             accum,
             cm_u,
-            *w_u,
+            w_u,
             u,
             o_u,
             arithm_circuit,

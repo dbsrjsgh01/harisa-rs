@@ -4,6 +4,7 @@ pub mod data_structure;
 pub mod lookup;
 pub mod prover;
 pub mod setup;
+pub mod test;
 pub mod verifier;
 pub mod well_transform;
 

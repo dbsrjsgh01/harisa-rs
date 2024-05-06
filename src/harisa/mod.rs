@@ -11,7 +11,7 @@ pub mod preprocess;
 
 pub mod hash_to_prime;
 
-// mod test;
+mod test;
 
 use std::marker::PhantomData;
 

@@ -91,7 +91,7 @@ impl<E: Pairing> From<PreparedVerifyingKey<E>> for VerifyingKey<E> {
 
 impl<E: Pairing> From<VerifyingKey<E>> for PreparedVerifyingKey<E> {
     fn from(other: VerifyingKey<E>) -> Self {
-        crate::core::cc_snark::prepare_verifying_key(&other)
+        crate::cc_snark::prepare_verifying_key(&other)
     }
 }
 

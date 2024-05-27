@@ -1,22 +1,17 @@
 use crate::{
-    core::{
-        cc_snark::{CcGroth16, R1CSToQAP},
-        pedersen::data_structure::Commitment,
+    cc_snark::{prepare_verifying_key, CcGroth16, R1CSToQAP},
+    harisa::{Membership, Proof},
+    lookup::{
+        data_structure::{LookupPP, LookupProof},
+        lookup::HarisaPlus,
     },
-    harisa::Membership,
 };
 
+use ark_crypto_primitives::snark::SNARK;
 use ark_ec::pairing::Pairing;
 use ark_relations::r1cs::SynthesisError;
-use core::ops::{AddAssign, MulAssign};
 
-use super::{
-    data_structure::{LookupPP, LookupProof},
-    lookup::HarisaLookup,
-};
-use crate::core::cc_snark::prepare_verifying_key;
-
-impl<E, M, QAP> HarisaLookup<E, M, QAP>
+impl<E, M, QAP> HarisaPlus<E, M, QAP>
 where
     E: Pairing,
     M: Membership<E>,
@@ -24,28 +19,29 @@ where
 {
     pub fn verify_lookup(
         pp: LookupPP<E, M>,
-        acc: E::G1Affine,
-        cm_u: Commitment<E::G1>,
-        cm_a: Commitment<E::G1>,
-        cm_z: Commitment<E::G1>,
-        prf: LookupProof<E, M>,
+        accum: E::G1Affine,
+        cm_u: E::G1Affine,
+        cm_f: E::G1Affine,
+        cm_z: E::G1Affine,
+        proof: LookupProof<E, M>,
     ) -> Result<bool, SynthesisError> {
-        let harisa_verify = start_timer!(|| "harisa::verify");
-        let harisa_result = M::verify(pp.harisa_crs, acc, cm_u, prf.harisa_prf).unwrap();
-        end_timer!(harisa_verify);
-
-        let wt_pvk = prepare_verifying_key(&pp.wt_vk.clone());
-        let wt_verify = start_timer!(|| "well-transformed::verify");
-        let wt_result = CcGroth16::<E>::verify_proof(&wt_pvk, &prf.wt_prf, &[]).unwrap();
-        end_timer!(wt_verify);
+        let mem_verify = start_timer!(|| "mem::verify");
+        let mem_result = M::verify(pp.m_pp, accum, cm_u, proof.m_prf).unwrap();
+        end_timer!(mem_verify);
 
         let ctt_pvk = prepare_verifying_key(&pp.ctt_vk.clone());
-        let ctt_verify = start_timer!(|| "copy-this-or-that::verify");
-        let ctt_result = CcGroth16::<E>::verify_proof(&ctt_pvk, &prf.ctt_prf, &[]).unwrap();
+        let ctt_verify = start_timer!(|| "cpctt::verify");
+        let ctt_result = CcGroth16::<E, QAP>::verify_proof(&ctt_pvk, &proof.ctt_prf, &[]).unwrap();
+        end_timer!(ctt_verify);
 
-        assert_eq!(harisa_result, true, "[Failed] Harisa Verification");
-        assert_eq!(wt_result, true, "[Failed] Well-transformed");
-        assert_eq!(ctt_result, true, "[Failed] Copy-this-or-that");
+        let wt_pvk = prepare_verifying_key(&pp.wt_vk.clone());
+        let wt_verify = start_timer!(|| "cpbound::verify");
+        let wt_result = CcGroth16::<E, QAP>::verify_proof(&wt_pvk, &proof.wt_prf, &[]).unwrap();
+        end_timer!(wt_verify);
+
+        assert_eq!(mem_result, true, "[HARiSA] Membership Check Failed");
+        assert_eq!(ctt_result, true, "[Copy this or that] Verification Failed");
+        assert_eq!(wt_result, true, "[Well Transformed] Verification Failed");
 
         Ok(true)
     }

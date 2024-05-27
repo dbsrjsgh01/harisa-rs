@@ -1,6 +1,6 @@
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
 
-use crate::core::cc_snark::{r1cs_to_qap::R1CSToQAP, CcGroth16};
+use crate::cc_snark::{r1cs_to_qap::R1CSToQAP, CcGroth16};
 
 use super::{PreparedVerifyingKey, Proof, VerifyingKey};
 

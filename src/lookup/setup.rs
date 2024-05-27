@@ -1,16 +1,22 @@
-use crate::core::cc_snark::{r1cs_to_qap::R1CSToQAP, CcGroth16, ProvingKey, VerifyingKey};
-use crate::core::pedersen::Pedersen;
-use crate::harisa::preprocess::*;
-use crate::harisa::{setup::*, Membership};
-use crate::lookup::concatenate::*;
-use crate::lookup::data_structure::LookupPP;
-use crate::lookup::lookup::HarisaLookup;
-use ark_crypto_primitives::snark::*;
+use crate::{
+    cc_snark::{prepare_verifying_key, CcGroth16, ProvingKey, VerifyingKey},
+    harisa::{harisa::Harisa, Membership},
+    lookup::{
+        data_structure::{LookupPP, LookupProof},
+        lookup::HarisaPlus,
+    },
+};
+
+use ark_crypto_primitives::snark::SNARK;
 use ark_ec::pairing::Pairing;
 use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
 use ark_std::rand::{CryptoRng, Rng, RngCore};
 
-impl<E: Pairing, M: Membership<E>, QAP: R1CSToQAP> HarisaLookup<E, M, QAP> {
+impl<E, M> HarisaPlus<E, M>
+where
+    E: Pairing,
+    M: Membership<E>,
+{
     pub fn generate_cc_snark_parameters<
         C: ConstraintSynthesizer<E::ScalarField>,
         R: RngCore + CryptoRng,
@@ -24,45 +30,40 @@ impl<E: Pairing, M: Membership<E>, QAP: R1CSToQAP> HarisaLookup<E, M, QAP> {
         Ok((cc_ek, cc_vk))
     }
 
-    pub fn generate_lookup_parameter<
-        R1CS: ConstraintSynthesizer<E::ScalarField>,
-        R: RngCore + CryptoRng + Rng,
+    fn generate_lookup_parameters<
+        C: ConstraintSynthesizer<E::ScalarField>,
+        R: Rng + RngCore + CryptoRng,
     >(
         set: Vec<E::ScalarField>,
-        arithm_circuit: Option<R1CS>,
-        bound_circuit: Option<R1CS>,
-        ctt_circuit: Option<R1CS>,
-        wt_circuit: Option<R1CS>,
+        ctt_circuit: C,
+        wt_circuit: C,
+        arithm_circuit: C,
+        bound_circuit: C,
         rng: &mut R,
-    ) -> Result<LookupPP<E, M>, SynthesisError> {
-        let num = set.len();
+    ) -> Result<(LookupPP<E, M>, M::Table), SynthesisError> {
+        let lookup_generation = start_timer!(|| "HARiSA+::Generator");
 
-        // table hat_T = T || z
-        let table = concatenate::<E>(set.clone(), set.clone(), num);
+        let (m_pp, tree) = M::setup(set, arithm_circuit, bound_circuit, rng).unwrap();
 
-        let (harisa_crs, table) = M::setup(
-            set.clone(),
-            arithm_circuit.unwrap(),
-            bound_circuit.unwrap(),
-            rng,
-        )
-        .unwrap();
+        let ctt_generation = start_timer!(|| "ctt::generator");
+        let (ctt_ek, ctt_vk) = Self::generate_cc_snark_parameters(ctt_circuit, rng).unwrap();
+        end_timer!(ctt_generation);
 
-        let (ctt_ek, ctt_vk) =
-            Self::generate_cc_snark_parameters(ctt_circuit.unwrap(), rng).unwrap();
+        let wt_generation = start_timer!(|| "wt::generator");
+        let (wt_ek, wt_vk) = Self::generate_cc_snark_parameters(wt_circuit, rng).unwrap();
+        end_timer!(wt_generation);
 
-        let (wt_ek, wt_vk) = Self::generate_cc_snark_parameters(wt_circuit.unwrap(), rng).unwrap();
+        end_timer!(lookup_generation);
 
-        let cm_pp = Pedersen::<E::G1>::setup(set.len(), rng).unwrap();
-
-        Ok(LookupPP {
-            harisa_crs,
-            wt_ek,
-            wt_vk,
-            ctt_ek,
-            ctt_vk,
-            cm_pp,
-            table,
-        })
+        Ok((
+            LookupPP {
+                m_pp,
+                ctt_ek,
+                ctt_vk,
+                wt_ek,
+                wt_vk,
+            },
+            tree,
+        ))
     }
 }

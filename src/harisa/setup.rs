@@ -1,11 +1,10 @@
 use std::marker::PhantomData;
 
-use crate::core::cc_snark::r1cs_to_qap::R1CSToQAP;
-use crate::core::cc_snark::{
+use crate::cc_snark::{
     data_structure::{ProvingKey, VerifyingKey},
+    r1cs_to_qap::R1CSToQAP,
     CcGroth16,
 };
-use crate::core::pedersen::Pedersen;
 use crate::ConstraintF;
 
 use super::data_structure::HarisaPP;
@@ -16,7 +15,10 @@ use ark_crypto_primitives::snark::*;
 use ark_ec::pairing::Pairing;
 use ark_r1cs_std::pairing::PairingVar;
 use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
-use ark_std::rand::{CryptoRng, Rng, RngCore};
+use ark_std::{
+    rand::{CryptoRng, Rng, RngCore},
+    UniformRand,
+};
 
 impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
     pub fn generate_cc_snark_parameters<
@@ -54,12 +56,13 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         let (bound_ek, bound_vk) = Self::generate_cc_snark_parameters(bound_circuit, rng).unwrap();
         end_timer!(bound_generation);
 
-        let cm_pp = Pedersen::<E::G1>::setup(num + 1, rng).unwrap();
-
         end_timer!(harisa_generation);
 
+        let g = E::G1Affine::rand(rng);
+
         let preprocessing = start_timer!(|| "HARiSA::Preprocess");
-        let table = preprocess::<E>(*cm_pp.g.first().unwrap(), set);
+        let table = preprocess::<E>(g, set);
+        end_timer!(preprocessing);
 
         Ok((
             HarisaPP {
@@ -67,7 +70,7 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
                 arithm_vk: arithm_vk.clone(),
                 bound_ek: bound_ek.clone(),
                 bound_vk: bound_vk.clone(),
-                cm_pp,
+                g: g.clone(),
             },
             table,
         ))

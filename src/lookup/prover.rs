@@ -1,18 +1,18 @@
-use crate::core::cc_snark::Proof;
-// lookup prover
-use crate::core::cc_snark::{r1cs_to_qap::R1CSToQAP, CcGroth16, ProvingKey, VerifyingKey};
-use crate::core::pedersen::{data_structure::Plaintext, Pedersen};
-use crate::harisa::preprocess::*;
-use crate::harisa::{prover::*, Membership};
-use crate::lookup::concatenate::*;
-use crate::lookup::data_structure::{LookupPP, LookupProof};
-use crate::lookup::lookup::HarisaLookup;
-use ark_crypto_primitives::snark::*;
+use crate::{
+    cc_snark::{CcGroth16, Proof, ProvingKey, R1CSToQAP},
+    harisa::{harisa::Harisa, Membership},
+    lookup::{
+        data_structure::{LookupPP, LookupProof},
+        lookup::HarisaPlus,
+    },
+};
+
+use ark_crypto_primitives::snark::SNARK;
 use ark_ec::pairing::Pairing;
 use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
 use ark_std::rand::{CryptoRng, Rng, RngCore};
 
-impl<E, M, QAP> HarisaLookup<E, M, QAP>
+impl<E, M, QAP> HarisaPlus<E, M, QAP>
 where
     E: Pairing,
     M: Membership<E>,
@@ -37,47 +37,35 @@ where
     }
 
     pub fn generate_lookup_proof<
-        R1CS: ConstraintSynthesizer<E::ScalarField>,
-        R: RngCore + CryptoRng + Rng,
+        C: ConstraintSynthesizer<E::ScalarField>,
+        R: Rng + RngCore + CryptoRng,
     >(
         pp: LookupPP<E, M>,
-        acc: E::G1Affine,
+        accum: E::G1Affine,
+        tree: M::Table,
         lookup: Vec<E::ScalarField>,
-        arithm_circuit: Option<R1CS>,
-        bound_circuit: Option<R1CS>,
-        ctt_circuit: Option<R1CS>,
-        wt_circuit: Option<R1CS>,
+        elem: Vec<E::ScalarField>,
+        rand: Vec<E::ScalarField>,
+        ctt_circuit: C,
+        wt_circuit: C,
+
+        //빠질 것들
+        cm_u: E::G1Affine,
+        o_u: E::ScalarField,
+
         rng: &mut R,
     ) -> Result<LookupProof<E, M>, SynthesisError> {
-        // lookup hat_F = F||z
-        let u_plain = concatenate::<E>(lookup.clone(), lookup.clone(), lookup.len());
+        // let (cm_u, o_u) = crate::utils::Utils::<E>::pedersen(pp.m_pp, elem, rng).unwrap();
+        let m_prf = M::prove(pp.m_pp, tree, accum, cm_u, elem, o_u, rng).unwrap();
 
-        let u = Plaintext::<E::G1>::from_plaintext_vec(u_plain);
+        let ctt_prf = Self::generate_cc_proof(&pp.ctt_ek, ctt_circuit, rng).unwrap();
 
-        // cm_u = COMM(u; o_u)
-        let (cm_u, o_u) = Pedersen::<E::G1>::commit(pp.cm_pp, u.clone(), rng).unwrap();
-
-        let harisa_prf = M::prove(
-            pp.harisa_crs,
-            acc,
-            cm_u,
-            u,
-            o_u,
-            arithm_circuit.unwrap(),
-            bound_circuit.unwrap(),
-            rng,
-        )
-        .unwrap();
-
-        let ctt_prf =
-            Self::generate_cc_proof(&pp.ctt_ek.clone(), ctt_circuit.unwrap(), rng).unwrap();
-
-        let wt_prf = Self::generate_cc_proof(&pp.wt_ek.clone(), wt_circuit.unwrap(), rng).unwrap();
+        let wt_prf = Self::generate_cc_proof(&pp.wt_ek, wt_circuit, rng).unwrap();
 
         Ok(LookupProof {
-            harisa_prf,
-            wt_prf,
+            m_prf,
             ctt_prf,
+            wt_prf,
         })
     }
 }

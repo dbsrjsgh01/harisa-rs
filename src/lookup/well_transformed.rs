@@ -15,17 +15,21 @@ use std::{
     ops::{AddAssign, Mul, MulAssign},
 };
 
+const SHIFT_SIZE: usize = 14;
+
 #[derive(Clone)]
-pub struct CTTCircuit<F: PrimeField> {
+pub struct WTCircuit<F: PrimeField> {
     pub u: Option<Vec<F>>,
     pub a: Option<Vec<F>>,
+    pub z: Option<Vec<F>>,
 }
 
-impl<F: PrimeField> CTTCircuit<F> {
-    pub fn new(u: Vec<F>, a: Vec<F>) -> Self {
+impl<F: PrimeField> WTCircuit<F> {
+    pub fn new(u: Vec<F>, a: Vec<F>, z: Vec<F>) -> Self {
         Self {
             u: Some(u),
             a: Some(a),
+            z: Some(z),
         }
     }
 
@@ -33,11 +37,12 @@ impl<F: PrimeField> CTTCircuit<F> {
         Self {
             u: Some(vec![F::zero(); len]),
             a: Some(vec![F::zero(); len]),
+            z: Some(vec![F::zero(); len]),
         }
     }
 }
 
-impl<F: PrimeField> ConstraintSynthesizer<F> for CTTCircuit<F> {
+impl<F: PrimeField> ConstraintSynthesizer<F> for WTCircuit<F> {
     fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
         let u = Vec::<FpVar<F>>::new_input(cs.clone(), || {
             self.u.ok_or(SynthesisError::AssignmentMissing)
@@ -47,21 +52,23 @@ impl<F: PrimeField> ConstraintSynthesizer<F> for CTTCircuit<F> {
             self.a.ok_or(SynthesisError::AssignmentMissing)
         })?;
 
-        let zero = FpVar::zero();
+        let z = Vec::<FpVar<F>>::new_witness(cs.clone(), || {
+            self.z.ok_or(SynthesisError::AssignmentMissing)
+        })?;
 
-        let mut this = a.clone().first().unwrap() - u.clone().first().unwrap();
-        let mut that = a.clone().first().unwrap() - zero.clone();
-        let mut res = this;
+        let mut shift = FpVar::new_constant(
+            cs.clone(),
+            F::from(2u128.pow(SHIFT_SIZE.try_into().unwrap())),
+        )?;
 
-        res.enforce_equal(&zero.clone())?;
+        for (u_i, (a_i, z_i)) in u
+            .clone()
+            .iter()
+            .zip(a.clone().into_iter().zip(z.clone().into_iter()))
+        {
+            let computed_u_i = a_i.clone() * shift.clone() + z_i.clone();
 
-        for (a_i, u_i) in a.clone().iter().skip(1).zip(u.clone().into_iter().skip(1)) {
-            this = a_i - u_i;
-            that -= a_i;
-            res = this * that;
-            res.enforce_equal(&zero.clone())?;
-
-            that = a_i.clone();
+            u_i.enforce_equal(&computed_u_i)?;
         }
 
         Ok(())
@@ -69,8 +76,8 @@ impl<F: PrimeField> ConstraintSynthesizer<F> for CTTCircuit<F> {
 }
 
 #[cfg(test)]
-mod ctt {
-    use super::CTTCircuit;
+mod wt {
+    use super::{WTCircuit, SHIFT_SIZE};
     use crate::cc_snark::{prepare_verifying_key, CcGroth16};
     use crate::harisa::constants::*;
     use crate::ConstraintF;
@@ -85,52 +92,46 @@ mod ctt {
         test_rng, One, UniformRand,
     };
 
-    fn test_cp_ctt<F: PrimeField>(a_len: usize) -> (Option<Vec<F>>, Option<Vec<F>>) {
+    fn test_cp_wt<F: PrimeField>(a_len: usize) -> (Option<Vec<F>>, Option<Vec<F>>, Option<Vec<F>>) {
         let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
 
-        let mut a_vec = Vec::new();
         let mut u_vec = Vec::new();
+        let mut a_vec = Vec::new();
+        let mut z_vec = Vec::new();
 
-        let r: usize = rng.gen::<usize>() % 256;
-        let a_i = F::from(ODD_PRIME[r]);
-        a_vec.push(a_i);
-        u_vec.push(a_i);
+        let shift = F::from(2u128.pow(SHIFT_SIZE.try_into().unwrap()));
 
-        for i in 1..a_len {
-            let r: usize = rng.gen::<usize>() % 256;
-            let a_i = F::from(ODD_PRIME[r]);
+        for i in 0..a_len {
+            let a_i = F::from(ODD_PRIME[3 * i]);
             a_vec.push(a_i);
 
-            let u_i = if a_vec[i] == a_vec[i - 1] && i > 0 {
-                let r: usize = rng.gen::<usize>() % 256;
-                F::from(ODD_PRIME[r])
-            } else {
-                a_i
-            };
+            let z_i = F::from(ODD_PRIME[3 * i + 1]);
+            z_vec.push(z_i);
 
+            let u_i = a_i * shift + z_i;
             u_vec.push(u_i);
         }
 
-        (Some(u_vec), Some(a_vec))
+        (Some(u_vec), Some(a_vec), Some(z_vec))
     }
 
     const U_LEN: usize = 32;
 
     #[test]
-    fn test_cp_ctt_cc_groth16_bn254() {
+    fn test_cp_wt_cc_groth16_bn254() {
         use ark_bn254::{Bn254, Fr as F};
         use ark_ed_on_bn254::{constraints::EdwardsVar as GG, EdwardsProjective as C};
 
         let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
 
-        let (u, a) = test_cp_ctt::<F>(U_LEN);
+        let (u, a, z) = test_cp_wt::<F>(U_LEN);
 
-        let circuit = CTTCircuit::<F>::mock(U_LEN);
+        let circuit = WTCircuit::<F>::mock(U_LEN);
 
         let (ek, vk) = CcGroth16::<Bn254>::circuit_specific_setup(circuit, &mut rng).unwrap();
         let pvk = prepare_verifying_key::<Bn254>(&vk);
 
-        let circuit = CTTCircuit::<F>::new(u.unwrap(), a.unwrap());
+        let circuit = WTCircuit::<F>::new(u.unwrap(), a.unwrap(), z.unwrap());
 
         let proof = CcGroth16::<Bn254>::prove(&ek, circuit, &mut rng).unwrap();
 

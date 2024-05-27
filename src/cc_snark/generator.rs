@@ -1,4 +1,4 @@
-use crate::core::cc_snark::{r1cs_to_qap::R1CSToQAP, CcGroth16, ProvingKey, Vec, VerifyingKey};
+use crate::cc_snark::{r1cs_to_qap::R1CSToQAP, CcGroth16, ProvingKey, Vec, VerifyingKey};
 use ark_ec::{pairing::Pairing, scalar_mul::fixed_base::FixedBase, CurveGroup, Group};
 use ark_ff::{Field, PrimeField, UniformRand, Zero};
 use ark_poly::{EvaluationDomain, GeneralEvaluationDomain};

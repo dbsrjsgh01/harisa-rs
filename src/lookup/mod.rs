@@ -1,18 +1,19 @@
-pub mod concatenate;
-pub mod copy_this_or_that;
 pub mod data_structure;
 pub mod lookup;
 pub mod prover;
 pub mod setup;
-pub mod test;
 pub mod verifier;
-pub mod well_transform;
+
+mod test;
+
+pub mod copy_this_or_that;
+pub mod well_transformed;
+
+use crate::harisa::Membership;
 
 use ark_ec::pairing::Pairing;
 use ark_relations::r1cs::ConstraintSynthesizer;
 use ark_std::rand::{CryptoRng, Rng, RngCore};
-
-use crate::harisa::Membership;
 
 pub trait Lookup<E: Pairing, M: Membership<E>> {
     type PP;

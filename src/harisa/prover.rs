@@ -1,21 +1,18 @@
 use super::{
     arithm::ArithmCircuit,
+    bound::BoundCircuit,
     data_structure::{HarisaPP, HarisaProof},
+    harisa::Harisa,
     hash_to_prime::hash_to_prime,
     preprocess::*,
     r1cs_to_qap::LibsnarkReduction,
 };
-
-use crate::core::pedersen::data_structure::Randomness;
-use crate::core::pedersen::Pedersen;
-use crate::core::{
-    cc_snark::{
-        data_structure::{Proof, ProvingKey},
-        r1cs_to_qap::R1CSToQAP,
-        CcGroth16,
-    },
-    pedersen::data_structure::{Commitment, Plaintext},
+use crate::cc_snark::{
+    data_structure::{Proof, ProvingKey},
+    r1cs_to_qap::R1CSToQAP,
+    CcGroth16,
 };
+use crate::utils::Utils;
 
 use ark_crypto_primitives::snark::*;
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
@@ -28,8 +25,6 @@ use ark_std::{
     rand::{CryptoRng, Rng, RngCore},
     One, UniformRand, Zero,
 };
-
-use super::harisa::Harisa;
 
 impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
     fn generate_cc_proof<C, R>(
@@ -50,41 +45,37 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         Ok(cc_prf)
     }
 
-    pub fn generate_harisa_proof<
-        Arithm: ConstraintSynthesizer<E::ScalarField>,
-        Bound: ConstraintSynthesizer<E::ScalarField>,
-        R: RngCore + CryptoRng + Rng,
-    >(
+    pub fn generate_harisa_proof<R: RngCore + CryptoRng + Rng>(
         pp: HarisaPP<E>,
         accum: E::G1Affine,
-        cm_u: Commitment<E::G1>,
+        cm_u: E::G1Affine,
         w: E::G1Affine,
-        u: Plaintext<E::G1>,
-        o_u: Randomness<E::G1>,
-        arithm_circuit: Arithm,
-        bound_circuit: Bound,
+        u: Vec<E::ScalarField>,
+        o_u: E::ScalarField,
         rng: &mut R,
     ) -> Result<HarisaProof<E>, SynthesisError> {
         // pstar
         let mut p_star = E::ScalarField::one();
-        // accumulator hat 구하기
-        for p_i in u.msg.clone() {
+
+        for p_i in u.clone() {
             p_star *= p_i;
         }
-        let accum_hat = accum * p_star;
+
+        // let accum_hat = (accum * p_star).into();
+        let accum_hat = accum;
 
         // ustar
         let mut u_star = E::ScalarField::one();
-        for u_i in u.msg.clone() {
+        for u_i in u.clone() {
             u_star *= u_i;
         }
 
         // sample b
         let b_rand = E::ScalarField::rand(rng);
         let mut b_bits = b_rand.into_bigint().to_bits_le();
-        b_bits.truncate(u.msg.clone().into_iter().len());
+        b_bits.truncate(u.clone().into_iter().len());
 
-        for _ in b_bits.len()..u.msg.clone().len() {
+        for _ in b_bits.len()..u.clone().len() {
             b_bits.push(false);
         }
 
@@ -93,7 +84,7 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         // calculate s, s_bar
         let (mut s, mut s_bar) = (E::ScalarField::one(), E::ScalarField::one());
 
-        for (p_i, b_bits_i) in u.msg.clone().iter().zip(b_bits.clone().into_iter()) {
+        for (p_i, b_bits_i) in u.clone().iter().zip(b_bits.clone().into_iter()) {
             match b_bits_i {
                 false => s_bar *= p_i,
                 true => s *= p_i,
@@ -101,24 +92,30 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         }
 
         // calculate w_hat
-        let w_hat = w * s_bar;
+        let w_hat = (w * s_bar).into();
 
         // sample r
         let r_rand = E::ScalarField::rand(rng);
 
-        // cm_sr
-        let (cm_sr, o_sr) = Pedersen::<E::G1>::commit(
-            pp.cm_pp.clone(),
-            Plaintext::<E::G1>::from_plaintext_vec(vec![s, r_rand.clone()]),
-            rng,
-        )
-        .unwrap();
-
         // calculate R
-        let r = w_hat * r_rand;
+        let r = (w_hat * r_rand).into();
+
+        let (cm_sr, o_sr) = Utils::<E>::pedersen(pp.g.clone(), vec![s, r_rand], rng).unwrap();
 
         // hash h
-        let h = E::ScalarField::rand(rng);
+        let h = hash_to_prime::<E>(
+            vec![
+                pp.g.clone(),
+                accum,
+                cm_u.clone(),
+                cm_sr.clone(),
+                w_hat,
+                r.clone(),
+            ],
+            vec![],
+            8,
+        )
+        .unwrap();
 
         // calculate k
         let mut k = r_rand + u_star * s * h;
@@ -126,24 +123,24 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         // PoKE => prf1
         // 1. Hash-to-prime(crs, A, B) => l
         // 2. Q = W^{lower(x / l)}, res = k
-        let l = hash_to_prime::<E, R>(
-            vec![
-                *pp.cm_pp.g.clone().first().unwrap(),
-                w_hat.into(),
-                ((accum_hat * h) + r).into(),
-            ],
-            vec![],
-            8,
-            rng,
-        )
-        .unwrap();
+        let large_b = (accum_hat * h + r).into();
+
+        let l = hash_to_prime::<E>(vec![pp.g.clone(), w_hat.into(), large_b], vec![], 8).unwrap();
 
         let quot = k / l;
-        let rem: E::ScalarField = k - l * quot;
-        let q: E::G1 = w_hat * quot;
+        let rem = k - l * quot;
+        let q = (w_hat * quot).into();
+
+        // println!("[Prf1] Q: {:?}", q);
+        // println!("[Prf1] acc_hat: {:?}", accum_hat);
+        // println!("[Prf1] r: {:?}", r);
+        // println!("[Prf1] calculated: {:?}", large_b);
 
         // Hash-to-prime => l (이 때의 hash는 poseidon이겠지?)
-        let l = hash_to_prime::<E, R>(vec![w_hat.into()], vec![], 8, rng).unwrap();
+        // 근데 앞의 PoKE랑 중복되서 skip 가능
+        // let l = hash_to_prime::<E>(vec![pp.g.clone(), w_hat.into(), large_b], vec![], 8).unwrap();
+        let arithm_circuit = ArithmCircuit::<E::ScalarField>::new(h, l, rem, u.clone(), s, rem);
+        let bound_circuit = BoundCircuit::<E::ScalarField>::new(E::ScalarField::one(), u.clone());
 
         // arithm => prf2
         let arithm_prf =
@@ -153,35 +150,29 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         let bound_prf = Self::generate_cc_proof(&pp.bound_ek.clone(), bound_circuit, rng).unwrap();
 
         Ok(HarisaProof {
-            w_hat: w_hat.into(),
-            r: r.into(),
+            w_hat,
+            r,
             cm_sr,
-            q: q.into(),
-            k: rem.into(),
+            q,
+            k: rem,
             arithm_prf,
             bound_prf,
         })
     }
 
-    pub fn generate_harisa_opt_proof<
-        Arithm: ConstraintSynthesizer<E::ScalarField>,
-        Bound: ConstraintSynthesizer<E::ScalarField>,
-        R: RngCore + CryptoRng + Rng,
-    >(
+    pub fn generate_harisa_opt_proof<R: RngCore + CryptoRng + Rng>(
         pp: HarisaPP<E>,
+        tree: Vec<E::G1Affine>,
         accum: E::G1Affine,
-        cm_u: Commitment<E::G1>,
-        u: Plaintext<E::G1>,
-        o_u: Randomness<E::G1>,
-        arithm_circuit: Arithm,
-        bound_circuit: Bound,
+        cm_u: E::G1Affine,
+        u: Vec<E::ScalarField>,
+        o_u: E::ScalarField,
         rng: &mut R,
     ) -> Result<HarisaProof<E>, SynthesisError> {
         let mut w: Vec<E::G1Affine> = Vec::new();
-        let g: E::G1Affine = *pp.cm_pp.g.clone().first().unwrap();
 
-        for u_i in u.msg.clone().iter() {
-            w.push((g.clone() * u_i).into());
+        for i in 0..u.clone().len() {
+            w.push(tree[i]);
         }
 
         let mut w_len = w.len();
@@ -191,8 +182,8 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
 
             for i in 0..w_len {
                 w[i] = assemble::<E>(
-                    u.msg.clone()[2 * i],
-                    u.msg.clone()[2 * i + 1],
+                    u.clone()[2 * i],
+                    u.clone()[2 * i + 1],
                     w[2 * i].clone(),
                     w[2 * i + 1].clone(),
                 );
@@ -201,19 +192,14 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         }
         let w_u = *w.first().unwrap();
 
-        let proof = Self::generate_harisa_proof(
-            pp,
-            accum,
-            cm_u,
-            w_u,
-            u,
-            o_u,
-            arithm_circuit,
-            bound_circuit,
-            rng,
-        )
-        .unwrap();
+        let proof = Self::generate_harisa_proof(pp, accum, cm_u, w_u, u, o_u, rng).unwrap();
 
         Ok(proof)
     }
 }
+
+// 현재 수정해야 할 내용
+// 1. opt_proof: W_u 계산할 때 값 어떻게 table에서 뽑을 것인가?
+// 2. PoKE 값 맞는지 확인
+// 3. Arithm circuit verification => Failed
+// 4. Hash-to-prime: MiMC7으로? OR Poseidon?

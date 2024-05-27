@@ -1,4 +1,4 @@
-use crate::core::cc_snark::{prepare_verifying_key, CcGroth16};
+use crate::cc_snark::{prepare_verifying_key, CcGroth16};
 use ark_crypto_primitives::snark::{CircuitSpecificSetupSNARK, SNARK};
 use ark_ec::pairing::Pairing;
 use ark_ff::Field;

@@ -26,7 +26,7 @@ use ark_std::rand::{CryptoRng, Rng, RngCore};
 pub type Error = Box<dyn ark_std::error::Error>;
 
 pub trait Membership<E: Pairing> {
-    type Parameters;
+    type Parameters: Clone;
     type Table;
     type Proof;
 

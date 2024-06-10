@@ -1,11 +1,11 @@
 use std::marker::PhantomData;
 
 use ark_ec::pairing::Pairing;
-use ark_ff::{BigInt, PrimeField};
+use ark_ff::{BigInt, Field, PrimeField};
 use ark_relations::r1cs::SynthesisError;
 use ark_std::{
     rand::{CryptoRng, Rng, RngCore},
-    test_rng, UniformRand,
+    test_rng, One, UniformRand, Zero,
 };
 use rand_core::SeedableRng;
 
@@ -32,42 +32,81 @@ impl<E: Pairing> Utils<E> {
         Ok((cm.into(), r))
     }
 
+    fn rem(a: E::ScalarField, b: E::ScalarField) -> E::ScalarField {
+        let quot = a / b;
+        a - quot * b
+    }
+
+    fn pow(a: E::ScalarField, b: E::ScalarField) -> E::ScalarField {
+        let mut tmp = b;
+        let mut res = a;
+        let one = E::ScalarField::one();
+        while tmp == one {
+            tmp -= one;
+            res *= a;
+        }
+        res
+    }
+
     /// Miller-Rabin primality test
-    fn miller_rabin<R: Rng + CryptoRng + RngCore>(input: usize, check_time: usize) -> bool {
+    fn miller_rabin<R: Rng + CryptoRng + RngCore>(
+        input: E::ScalarField,
+        check_time: usize,
+    ) -> bool {
         let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
 
-        let range = input - 3;
+        let range = input - E::ScalarField::from(3u64);
 
         let mut r: usize = 0;
-        let mut d: usize = 0;
+        let mut d = E::ScalarField::zero();
+
+        let one = E::ScalarField::one();
+        let two = one + one;
 
         let mut tmp = input.clone();
+        let mut tmp2 = tmp / two;
 
-        while tmp % 2 == 1 {
-            tmp /= 2;
+        while tmp == tmp2 * two + one {
+            tmp = tmp2;
+            tmp2 /= two;
             r += 1;
         }
 
         d = tmp;
 
-        for i in 0..check_time {
-            let a = rng.gen::<usize>() % range + 2;
-            let mut x = a.pow(d.try_into().unwrap()) % input;
-            if x == 1 || x == input - 1 {
-                continue;
+        'check: for i in 0..check_time {
+            let a = Self::rem(E::ScalarField::rand(&mut rng), range) + two;
+
+            let mut x = Self::rem(Self::pow(a, d.try_into().unwrap()), input);
+
+            if x == one || x + one == input {
+                continue 'check;
             }
+
             for j in 0..r - 1 {
-                x = x.pow(2) % input;
-                if x == 1 {
+                x = x * x;
+                x = Self::rem(x, input);
+                if x == one {
                     return false;
                 }
-                if x == input - 1 {
-                    continue;
+                if x + one == input {
+                    continue 'check;
                 }
                 return false;
             }
         }
 
         true
+    }
+
+    pub fn set(n: usize) -> Vec<E::ScalarField> {
+        use crate::harisa::constants::ODD_PRIME;
+
+        let mut res = Vec::new();
+        for i in 0..n {
+            res.push(E::ScalarField::from(ODD_PRIME[i]));
+        }
+
+        res
     }
 }

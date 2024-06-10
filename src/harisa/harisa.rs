@@ -14,6 +14,7 @@ pub type Error = Box<dyn ark_std::error::Error>;
 
 use crate::cc_snark::r1cs_to_qap::{LibsnarkReduction, R1CSToQAP};
 
+#[derive(Clone)]
 pub struct Harisa<E: Pairing, QAP: R1CSToQAP = LibsnarkReduction> {
     _p: PhantomData<(E, QAP)>,
 }

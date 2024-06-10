@@ -5,6 +5,7 @@ use ark_ff::{
     biginteger::{BigInteger as _, BigInteger64 as B},
     One, PrimeField,
 };
+use ark_nonnative_field::NonNativeFieldVar;
 use ark_r1cs_std::{fields::fp::FpVar, prelude::*};
 use ark_relations::{
     ns,
@@ -73,7 +74,7 @@ impl<F: PrimeField> ConstraintSynthesizer<F> for ArithmCircuit<F> {
 
         let r = FpVar::new_witness(cs.clone(), || {
             self.r.ok_or(SynthesisError::AssignmentMissing)
-        })?;
+        })?; // nonnative fieldvar <= 모듈러가 다를 경우 자동으로 Fp로 돌아가서 그럴 수 있다...
 
         let mut computed_k = s * h;
 
@@ -150,7 +151,7 @@ mod arithm {
         // h, l, k, u, s, r
         let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
 
-        let h = F::one();
+        let h = F::rand(&mut rng);
         let l = F::one();
         let s = F::rand(&mut rng);
         let r = F::rand(&mut rng);

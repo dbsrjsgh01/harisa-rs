@@ -30,15 +30,18 @@ where
         Ok((cc_ek, cc_vk))
     }
 
-    fn generate_lookup_parameters<
-        C: ConstraintSynthesizer<E::ScalarField>,
+    pub fn generate_lookup_parameters<
+        CTT: ConstraintSynthesizer<E::ScalarField>,
+        WT: ConstraintSynthesizer<E::ScalarField>,
+        Arithm: ConstraintSynthesizer<E::ScalarField>,
+        Bound: ConstraintSynthesizer<E::ScalarField>,
         R: Rng + RngCore + CryptoRng,
     >(
         set: Vec<E::ScalarField>,
-        ctt_circuit: C,
-        wt_circuit: C,
-        arithm_circuit: C,
-        bound_circuit: C,
+        ctt_circuit: CTT,
+        wt_circuit: WT,
+        arithm_circuit: Arithm,
+        bound_circuit: Bound,
         rng: &mut R,
     ) -> Result<(LookupPP<E, M>, M::Table), SynthesisError> {
         let lookup_generation = start_timer!(|| "HARiSA+::Generator");

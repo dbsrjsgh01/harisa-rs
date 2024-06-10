@@ -80,11 +80,11 @@ fn set<F: PrimeField>(n: usize) -> Vec<F> {
 #[test]
 fn test_harisa_bn254() {
     // use crate::harisa::constants::ODD_PRIME;
-    use ark_bn254::{Bn254, Fr as F};
+    use ark_bn254::{Bn254 as E, Fr as F};
     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
 
     // let set = set::<Bn254>(256);
     let set = set::<F>(256);
 
-    test_harisa::<Bn254>(set, SET_SIZE);
+    test_harisa::<E>(set, SET_SIZE);
 }

@@ -7,12 +7,15 @@ use super::{
     preprocess::*,
     r1cs_to_qap::LibsnarkReduction,
 };
-use crate::cc_snark::{
-    data_structure::{Proof, ProvingKey},
-    r1cs_to_qap::R1CSToQAP,
-    CcGroth16,
-};
 use crate::utils::Utils;
+use crate::{
+    cc_snark::{
+        data_structure::{Proof, ProvingKey},
+        r1cs_to_qap::R1CSToQAP,
+        CcGroth16,
+    },
+    harisa::constants::ODD_PRIME,
+};
 
 use ark_crypto_primitives::snark::*;
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
@@ -57,12 +60,16 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         // pstar
         let mut p_star = E::ScalarField::one();
 
-        for p_i in u.clone() {
+        let mut p = Vec::new();
+
+        for i in 0..ODD_PRIME.len() {
+            let p_i = E::ScalarField::from(ODD_PRIME[i]);
+            p.push(p_i);
             p_star *= p_i;
         }
 
-        // let accum_hat = (accum * p_star).into();
-        let accum_hat = accum;
+        let accum_hat = (accum * p_star).into();
+        // let accum_hat = accum;
 
         // ustar
         let mut u_star = E::ScalarField::one();
@@ -84,7 +91,7 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         // calculate s, s_bar
         let (mut s, mut s_bar) = (E::ScalarField::one(), E::ScalarField::one());
 
-        for (p_i, b_bits_i) in u.clone().iter().zip(b_bits.clone().into_iter()) {
+        for (p_i, b_bits_i) in p.clone().iter().zip(b_bits.clone().into_iter()) {
             match b_bits_i {
                 false => s_bar *= p_i,
                 true => s *= p_i,
@@ -136,10 +143,16 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         // println!("[Prf1] r: {:?}", r);
         // println!("[Prf1] calculated: {:?}", large_b);
 
+        assert_eq!(k, (r_rand + u_star * s * h).into());
+        assert_eq!(k, quot * l + rem);
+
         // Hash-to-prime => l (이 때의 hash는 poseidon이겠지?)
         // 근데 앞의 PoKE랑 중복되서 skip 가능
         // let l = hash_to_prime::<E>(vec![pp.g.clone(), w_hat.into(), large_b], vec![], 8).unwrap();
-        let arithm_circuit = ArithmCircuit::<E::ScalarField>::new(h, l, rem, u.clone(), s, rem);
+
+        // arithm_circuit: k - 원래는 [k mod l]인데 지금 l 모듈러 안해서 걍 계산한 circuit임
+        // bound_circuit: 원래 1이 아니라 p_2lambda = ODD_PRIME[255]보다 큰지 확인하는 것임
+        let arithm_circuit = ArithmCircuit::<E::ScalarField>::new(h, l, k, u.clone(), s, r_rand);
         let bound_circuit = BoundCircuit::<E::ScalarField>::new(E::ScalarField::one(), u.clone());
 
         // arithm => prf2
@@ -191,6 +204,8 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
             w.truncate(w_len);
         }
         let w_u = *w.first().unwrap();
+
+        println!("{:?}", w_u);
 
         let proof = Self::generate_harisa_proof(pp, accum, cm_u, w_u, u, o_u, rng).unwrap();
 

@@ -37,7 +37,8 @@ where
     }
 
     pub fn generate_lookup_proof<
-        C: ConstraintSynthesizer<E::ScalarField>,
+        CTT: ConstraintSynthesizer<E::ScalarField>,
+        WT: ConstraintSynthesizer<E::ScalarField>,
         R: Rng + RngCore + CryptoRng,
     >(
         pp: LookupPP<E, M>,
@@ -46,8 +47,8 @@ where
         lookup: Vec<E::ScalarField>,
         elem: Vec<E::ScalarField>,
         rand: Vec<E::ScalarField>,
-        ctt_circuit: C,
-        wt_circuit: C,
+        ctt_circuit: CTT,
+        wt_circuit: WT,
 
         //빠질 것들
         cm_u: E::G1Affine,
@@ -55,7 +56,6 @@ where
 
         rng: &mut R,
     ) -> Result<LookupProof<E, M>, SynthesisError> {
-        // let (cm_u, o_u) = crate::utils::Utils::<E>::pedersen(pp.m_pp, elem, rng).unwrap();
         let m_prf = M::prove(pp.m_pp, tree, accum, cm_u, elem, o_u, rng).unwrap();
 
         let ctt_prf = Self::generate_cc_proof(&pp.ctt_ek, ctt_circuit, rng).unwrap();

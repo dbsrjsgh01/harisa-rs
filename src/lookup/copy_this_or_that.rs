@@ -29,10 +29,10 @@ impl<F: PrimeField> CTTCircuit<F> {
         }
     }
 
-    pub fn mock(len: usize) -> Self {
+    pub fn mock(t_len: usize, u_len: usize) -> Self {
         Self {
-            u: Some(vec![F::zero(); len]),
-            a: Some(vec![F::zero(); len]),
+            u: Some(vec![F::zero(); t_len]),
+            a: Some(vec![F::zero(); u_len]),
         }
     }
 }
@@ -125,7 +125,7 @@ mod ctt {
 
         let (u, a) = test_cp_ctt::<F>(U_LEN);
 
-        let circuit = CTTCircuit::<F>::mock(U_LEN);
+        let circuit = CTTCircuit::<F>::mock(U_LEN, U_LEN);
 
         let (ek, vk) = CcGroth16::<Bn254>::circuit_specific_setup(circuit, &mut rng).unwrap();
         let pvk = prepare_verifying_key::<Bn254>(&vk);

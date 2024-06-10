@@ -21,7 +21,7 @@ fn test_lookup<E: Pairing>(set: Vec<E::ScalarField>, l_size: usize) {
     let arithm_circuit = ArithmCircuit::<E::ScalarField>::mock(l_size);
     let bound_circuit = BoundCircuit::<E::ScalarField>::mock(l_size);
 
-    let ctt_circuit = CTTCircuit::<E::ScalarField>::mock(l_size);
+    let ctt_circuit = CTTCircuit::<E::ScalarField>::mock(set.len(), l_size);
     let wt_circuit = WTCircuit::<E::ScalarField>::mock(l_size);
 
     let (pp, tree) = HarisaPlus::<E, Harisa<E>>::generate_lookup_parameters(
@@ -43,7 +43,7 @@ fn test_lookup<E: Pairing>(set: Vec<E::ScalarField>, l_size: usize) {
     let wt_circuit = WTCircuit::<E::ScalarField>::new(set.clone(), u.clone(), u.clone());
 
     let proof = HarisaPlus::<E, Harisa<E>>::generate_lookup_proof(
-        pp.clone(), // Error: unsatisfy `clone` trait bound
+        pp.clone(),
         accum,
         tree,
         set,

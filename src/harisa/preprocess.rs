@@ -1,6 +1,8 @@
 use ark_ec::pairing::Pairing;
-use ark_ff::{PrimeField, UniformRand};
+use ark_ff::{BigInteger, Field, PrimeField, UniformRand};
 use ark_std::{rand::Rng, One, Zero};
+
+use crate::utils::Utils;
 
 pub fn preprocess<E: Pairing>(g: E::G1Affine, set: Vec<E::ScalarField>) -> Vec<E::G1Affine> {
     let mut tree = Vec::new();
@@ -35,21 +37,21 @@ pub fn assemble<E: Pairing>(
     b: E::ScalarField,
     w_a: E::G1Affine,
     w_b: E::G1Affine,
-) -> E::G1Affine {
+) -> (E::G1Affine, E::ScalarField) {
     let (x, y) = extended_euclidean_algorithm::<E>(a, b);
     let res = w_a * y + w_b * x;
-    res.into()
+    (res.into(), a * b)
 }
 
 pub fn extended_euclidean_algorithm<E: Pairing>(
     a: E::ScalarField,
     b: E::ScalarField,
 ) -> (E::ScalarField, E::ScalarField) {
-    let q = a / b;
-    let r = a - b * q;
-    if r == E::ScalarField::zero() {
+    if b == E::ScalarField::zero() {
         (E::ScalarField::one(), E::ScalarField::zero())
     } else {
+        // 나눗셈, 나머지 구현 필요
+        let (q, r) = Utils::<E>::div(a, b);
         let (x, y) = extended_euclidean_algorithm::<E>(b, r);
         let new_y = x - y.clone() * q;
 
@@ -93,5 +95,16 @@ mod preprocess {
         use ark_bn254::Bn254 as E;
 
         test_preprocess::<E>(8)
+    }
+
+    #[test]
+    fn test_ext_euclid() {
+        use super::extended_euclidean_algorithm;
+        use ark_bn254::{Bn254 as E, Fr as F};
+        let a = F::from(161u64);
+        let b = F::from(28u64);
+
+        let (x, y) = extended_euclidean_algorithm::<E>(a, b);
+        assert_eq!(y, F::from(6u64));
     }
 }

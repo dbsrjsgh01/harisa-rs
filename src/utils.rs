@@ -109,4 +109,17 @@ impl<E: Pairing> Utils<E> {
 
         res
     }
+
+    pub fn div(a: E::ScalarField, b: E::ScalarField) -> (E::ScalarField, E::ScalarField) {
+        let mut y = a;
+        let mut x = E::ScalarField::zero();
+        let trigger = b > E::ScalarField::one();
+
+        while y >= b || trigger {
+            y -= b;
+            x += E::ScalarField::one();
+        }
+
+        (x, y)
+    }
 }

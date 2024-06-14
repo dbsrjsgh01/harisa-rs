@@ -42,12 +42,12 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         let l =
             hash_to_prime::<E>(vec![pp.g.clone(), proof.w_hat.into(), acc_hat], vec![], 8).unwrap();
 
-        // // PoKE verify
-        // assert_eq!(
-        //     (proof.q * l + proof.w_hat * proof.k).into(),
-        //     acc_hat,
-        //     "[PoKE] Verification Failed"
-        // );
+        // PoKE verify
+        assert_eq!(
+            (proof.q * l + proof.w_hat * proof.k).into(),
+            acc_hat,
+            "[PoKE] Verification Failed"
+        );
 
         let arithm_pvk = prepare_verifying_key(&pp.arithm_vk.clone());
         let arithm_verify = start_timer!(|| "cparithm::verify");

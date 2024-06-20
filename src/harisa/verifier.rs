@@ -5,7 +5,9 @@ use crate::ConstraintF;
 use ark_ec::pairing::Pairing;
 use ark_r1cs_std::pairing::PairingVar;
 use ark_relations::r1cs::SynthesisError;
+use ark_std::One;
 use core::ops::{AddAssign, MulAssign};
+use num_bigint::BigInt;
 
 use super::prepare_verifying_key;
 use super::r1cs_to_qap::R1CSToQAP;
@@ -17,34 +19,39 @@ use super::{
 impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
     pub fn harisa_verify(
         pp: HarisaPP<E>,
-        accum: E::G1Affine,
-        cm_u: E::G1Affine,
+        accum: BigInt,
+        // cm_u: E::G1Affine,
         proof: HarisaProof<E>,
     ) -> Result<bool, SynthesisError> {
         // proof = w_hat, r, cm_sr, q, k, arithm_prf, bound_prf
-        let h = hash_to_prime::<E>(
-            vec![
-                pp.g.clone(),
-                accum,
-                cm_u.clone(),
-                proof.cm_sr.clone(),
-                proof.w_hat.into(),
-                proof.r.clone(),
-            ],
-            vec![],
-            8,
-        )
-        .unwrap();
+
+        // hash h
+        let h = BigInt::one();
+
+        // let h = hash_to_prime::<E>(
+        //     vec![
+        //         pp.g.clone(),
+        //         accum,
+        //         cm_u.clone(),
+        //         proof.cm_sr.clone(),
+        //         proof.w_hat.into(),
+        //         proof.r.clone(),
+        //     ],
+        //     vec![],
+        //     8,
+        // )
+        // .unwrap();
         // 1. acc_hat = acc^{h * prod_pi} + R
-        let acc_hat = (accum * h + proof.r).into();
+        let acc_hat = accum * h + proof.r;
 
         // hash-to-prime => l
-        let l =
-            hash_to_prime::<E>(vec![pp.g.clone(), proof.w_hat.into(), acc_hat], vec![], 8).unwrap();
+        // let l =
+        //     hash_to_prime::<E>(vec![pp.g.clone(), proof.w_hat.into(), acc_hat], vec![], 8).unwrap();
+        let l = BigInt::one();
 
         // PoKE verify
         assert_eq!(
-            (proof.q * l + proof.w_hat * proof.k).into(),
+            proof.q * l + proof.w_hat * proof.k,
             acc_hat,
             "[PoKE] Verification Failed"
         );

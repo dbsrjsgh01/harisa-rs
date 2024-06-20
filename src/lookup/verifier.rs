@@ -10,6 +10,7 @@ use crate::{
 use ark_crypto_primitives::snark::SNARK;
 use ark_ec::pairing::Pairing;
 use ark_relations::r1cs::SynthesisError;
+use num_bigint::BigInt;
 
 impl<E, M, QAP> HarisaPlus<E, M, QAP>
 where
@@ -19,14 +20,15 @@ where
 {
     pub fn verify_lookup(
         pp: LookupPP<E, M>,
-        accum: E::G1Affine,
+        accum: BigInt,
         cm_u: E::G1Affine,
         cm_f: E::G1Affine,
         cm_z: E::G1Affine,
         proof: LookupProof<E, M>,
     ) -> Result<bool, SynthesisError> {
         let mem_verify = start_timer!(|| "mem::verify");
-        let mem_result = M::verify(pp.m_pp, accum, cm_u, proof.m_prf).unwrap();
+        // let mem_result = M::verify(pp.m_pp, accum, cm_u, proof.m_prf).unwrap();
+        let mem_result = M::verify(pp.m_pp, accum, proof.m_prf).unwrap();
         end_timer!(mem_verify);
 
         let ctt_pvk = prepare_verifying_key(&pp.ctt_vk.clone());

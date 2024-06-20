@@ -19,6 +19,7 @@ use ark_std::{
     rand::{CryptoRng, Rng, RngCore},
     UniformRand,
 };
+use num_bigint::BigInt;
 
 impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
     pub fn generate_cc_snark_parameters<
@@ -39,11 +40,11 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         Bound: ConstraintSynthesizer<E::ScalarField>,
         R: RngCore + CryptoRng + Rng,
     >(
-        set: Vec<E::ScalarField>,
+        set: Vec<BigInt>,
         arithm_circuit: Arithm,
         bound_circuit: Bound,
         rng: &mut R,
-    ) -> Result<(HarisaPP<E>, Vec<E::G1Affine>), SynthesisError> {
+    ) -> Result<(HarisaPP<E>, Vec<BigInt>), SynthesisError> {
         let num = set.len();
         let harisa_generation = start_timer!(|| "HARiSA::Generator");
 
@@ -58,10 +59,10 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
 
         end_timer!(harisa_generation);
 
-        let g = E::G1Affine::rand(rng);
+        let g = BigInt::from_slice(num_bigint::Sign::NoSign, &[rng.gen::<u32>()]);
 
         let preprocessing = start_timer!(|| "HARiSA::Preprocess");
-        let table = preprocess::<E>(g, set);
+        let table = preprocess(g.clone(), set);
         end_timer!(preprocessing);
 
         Ok((

@@ -11,6 +11,7 @@ use ark_crypto_primitives::snark::SNARK;
 use ark_ec::pairing::Pairing;
 use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
 use ark_std::rand::{CryptoRng, Rng, RngCore};
+use num_bigint::BigInt;
 
 impl<E, M, QAP> HarisaPlus<E, M, QAP>
 where
@@ -42,21 +43,15 @@ where
         R: Rng + RngCore + CryptoRng,
     >(
         pp: LookupPP<E, M>,
-        accum: E::G1Affine,
+        accum: BigInt,
         tree: M::Table,
-        lookup: Vec<E::ScalarField>,
-        elem: Vec<E::ScalarField>,
-        rand: Vec<E::ScalarField>,
+        lookup: Vec<BigInt>,
+        elem: Vec<BigInt>,
         ctt_circuit: CTT,
         wt_circuit: WT,
-
-        //빠질 것들
-        cm_u: E::G1Affine,
-        o_u: E::ScalarField,
-
         rng: &mut R,
     ) -> Result<LookupProof<E, M>, SynthesisError> {
-        let m_prf = M::prove(pp.m_pp, tree, accum, cm_u, elem, o_u, rng).unwrap();
+        let m_prf = M::prove(pp.m_pp, tree, accum, elem, rng).unwrap();
 
         let ctt_prf = Self::generate_cc_proof(&pp.ctt_ek, ctt_circuit, rng).unwrap();
 

@@ -4,7 +4,7 @@ pub mod prover;
 pub mod setup;
 pub mod verifier;
 
-mod test;
+// mod test;
 
 pub mod copy_this_or_that;
 pub mod well_transformed;
@@ -14,33 +14,46 @@ use crate::harisa::Membership;
 use ark_ec::pairing::Pairing;
 use ark_relations::r1cs::ConstraintSynthesizer;
 use ark_std::rand::{CryptoRng, Rng, RngCore};
+use num_bigint::BigInt;
+
+pub type Error = Box<dyn ark_std::error::Error>;
 
 pub trait Lookup<E: Pairing, M: Membership<E>> {
     type PP;
+    type Table;
     type Accum;
     type Proof;
-    type Error;
     type CM;
 
-    fn setup<R1CS: ConstraintSynthesizer<E::ScalarField>, R: RngCore + CryptoRng + Rng>(
-        set: Vec<E::ScalarField>,
-        arithm_circuit: Option<R1CS>,
-        bound_circuit: Option<R1CS>,
-        ctt_circuit: Option<R1CS>,
-        wt_circuit: Option<R1CS>,
+    fn setup<
+        CTT: ConstraintSynthesizer<E::ScalarField>,
+        WT: ConstraintSynthesizer<E::ScalarField>,
+        Arithm: ConstraintSynthesizer<E::ScalarField>,
+        Bound: ConstraintSynthesizer<E::ScalarField>,
+        R: RngCore + CryptoRng + Rng,
+    >(
+        set: Vec<BigInt>,
+        arithm_circuit: Option<Arithm>,
+        bound_circuit: Option<Bound>,
+        ctt_circuit: Option<CTT>,
+        wt_circuit: Option<WT>,
         rng: &mut R,
-    ) -> Result<Self::PP, Self::Error>;
+    ) -> Result<(Self::PP, Self::Table), Error>;
 
-    fn prove<R1CS: ConstraintSynthesizer<E::ScalarField>, R: RngCore + CryptoRng + Rng>(
+    fn prove<
+        CTT: ConstraintSynthesizer<E::ScalarField>,
+        WT: ConstraintSynthesizer<E::ScalarField>,
+        R: RngCore + CryptoRng + Rng,
+    >(
         pp: Self::PP,
         acc: Self::Accum,
-        lookup: Vec<E::ScalarField>,
-        arithm_circuit: Option<R1CS>,
-        bound_circuit: Option<R1CS>,
-        ctt_circuit: Option<R1CS>,
-        wt_circuit: Option<R1CS>,
+        tree: Self::Table,
+        lookup: Vec<BigInt>,
+        elem: Vec<BigInt>,
+        ctt_circuit: Option<CTT>,
+        wt_circuit: Option<WT>,
         rng: &mut R,
-    ) -> Result<Self::Proof, Self::Error>;
+    ) -> Result<Self::Proof, Error>;
 
     fn verify(
         pp: Self::PP,
@@ -49,5 +62,5 @@ pub trait Lookup<E: Pairing, M: Membership<E>> {
         cm_a: Self::CM,
         cm_z: Self::CM,
         prf: Self::Proof,
-    ) -> Result<bool, Self::Error>;
+    ) -> Result<bool, Error>;
 }

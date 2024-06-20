@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use ark_ec::pairing::Pairing;
 use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
 use ark_std::rand::{CryptoRng, Rng, RngCore};
+use num_bigint::BigInt;
 
 use crate::harisa::{
     data_structure::{HarisaPP, HarisaProof},
@@ -20,7 +21,7 @@ pub struct Harisa<E: Pairing, QAP: R1CSToQAP = LibsnarkReduction> {
 }
 
 impl<E: Pairing> Membership<E> for Harisa<E> {
-    type Table = Vec<E::G1Affine>;
+    type Table = Vec<BigInt>;
     type Parameters = HarisaPP<E>;
     type Proof = HarisaProof<E>;
 
@@ -29,7 +30,7 @@ impl<E: Pairing> Membership<E> for Harisa<E> {
         Bound: ConstraintSynthesizer<E::ScalarField>,
         R: RngCore + CryptoRng + Rng,
     >(
-        set: Vec<E::ScalarField>,
+        set: Vec<BigInt>,
         arithm_circuit: Arithm,
         bound_circuit: Bound,
         rng: &mut R,
@@ -43,24 +44,23 @@ impl<E: Pairing> Membership<E> for Harisa<E> {
     fn prove<R: RngCore + CryptoRng + Rng>(
         pp: Self::Parameters,
         tree: Self::Table,
-        accum: E::G1Affine,
-        cm_u: E::G1Affine,
-        u: Vec<E::ScalarField>,
-        o_u: E::ScalarField,
+        accum: BigInt,
+        u: Vec<BigInt>,
         rng: &mut R,
     ) -> Result<Self::Proof, Error> {
-        let proof = Self::generate_harisa_opt_proof(pp, tree, accum, cm_u, u, o_u, rng).unwrap();
+        let proof = Self::generate_harisa_opt_proof(pp, tree, accum, u, rng).unwrap();
 
         Ok(proof)
     }
 
     fn verify(
         pp: Self::Parameters,
-        accum: E::G1Affine,
-        c_u: E::G1Affine,
+        accum: BigInt,
+        // c_u: E::G1Affine,
         proof: Self::Proof,
     ) -> Result<bool, Error> {
-        let res = Self::harisa_verify(pp, accum, c_u, proof).unwrap();
+        // let res = Self::harisa_verify(pp, accum, c_u, proof).unwrap();
+        let res = Self::harisa_verify(pp, accum, proof).unwrap();
 
         Ok(res)
     }

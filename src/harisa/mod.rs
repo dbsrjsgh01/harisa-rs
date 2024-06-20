@@ -22,6 +22,7 @@ use ark_ec::pairing::Pairing;
 use ark_r1cs_std::pairing::PairingVar;
 use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
 use ark_std::rand::{CryptoRng, Rng, RngCore};
+use num_bigint::BigInt;
 
 pub type Error = Box<dyn ark_std::error::Error>;
 
@@ -35,32 +36,24 @@ pub trait Membership<E: Pairing> {
         Bound: ConstraintSynthesizer<E::ScalarField>,
         R: RngCore + CryptoRng + Rng,
     >(
-        set: Vec<E::ScalarField>,
+        set: Vec<BigInt>,
         arithm_circuit: Arithm,
         bound_circuit: Bound,
         rng: &mut R,
     ) -> Result<(Self::Parameters, Self::Table), Error>;
 
-    fn prove<
-        // Arithm: ConstraintSynthesizer<E::ScalarField>,
-        // Bound: ConstraintSynthesizer<E::ScalarField>,
-        R: RngCore + CryptoRng + Rng,
-    >(
+    fn prove<R: RngCore + CryptoRng + Rng>(
         pp: Self::Parameters,
         tree: Self::Table,
-        accum: E::G1Affine,
-        cm_u: E::G1Affine,
-        u: Vec<E::ScalarField>,
-        o_u: E::ScalarField,
-        // arithm_circuit: Arithm,
-        // bound_circuit: Bound,
+        accum: BigInt,
+        u: Vec<BigInt>,
         rng: &mut R,
     ) -> Result<Self::Proof, Error>;
 
     fn verify(
         pp: Self::Parameters,
-        accum: E::G1Affine,
-        c_u: E::G1Affine,
+        accum: BigInt,
+        // c_u: E::G1Affine,
         proof: Self::Proof,
     ) -> Result<bool, Error>;
 }

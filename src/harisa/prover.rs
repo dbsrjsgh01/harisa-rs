@@ -28,6 +28,7 @@ use ark_std::{
     rand::{CryptoRng, Rng, RngCore},
     One, UniformRand, Zero,
 };
+use num_bigint::BigInt;
 
 impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
     fn generate_cc_proof<C, R>(
@@ -50,29 +51,26 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
 
     pub fn generate_harisa_proof<R: RngCore + CryptoRng + Rng>(
         pp: HarisaPP<E>,
-        accum: E::G1Affine,
-        cm_u: E::G1Affine,
-        w: E::G1Affine,
-        u: Vec<E::ScalarField>,
-        o_u: E::ScalarField,
+        accum: BigInt,
+        w: BigInt,
+        u: Vec<BigInt>,
         rng: &mut R,
     ) -> Result<HarisaProof<E>, SynthesisError> {
         // pstar
-        let mut p_star = E::ScalarField::one();
+        let mut p_star = BigInt::one();
 
         let mut p = Vec::new();
 
         for i in 0..ODD_PRIME.len() {
-            let p_i = E::ScalarField::from(ODD_PRIME[i]);
-            p.push(p_i);
+            let p_i = BigInt::from(ODD_PRIME[i]);
+            p.push(p_i.clone());
             p_star *= p_i;
         }
 
-        let accum_hat = (accum * p_star).into();
-        // let accum_hat = accum;
+        let accum_hat = accum * p_star;
 
         // ustar
-        let mut u_star = E::ScalarField::one();
+        let mut u_star = BigInt::one();
         for u_i in u.clone() {
             u_star *= u_i;
         }
@@ -89,7 +87,7 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         b_bits.reverse();
 
         // calculate s, s_bar
-        let (mut s, mut s_bar) = (E::ScalarField::one(), E::ScalarField::one());
+        let (mut s, mut s_bar) = (BigInt::one(), BigInt::one());
 
         for (p_i, b_bits_i) in p.clone().iter().zip(b_bits.clone().into_iter()) {
             match b_bits_i {
@@ -99,63 +97,64 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         }
 
         // calculate w_hat
-        let w_hat = (w * s_bar).into();
+        let w_hat: BigInt = w * s_bar;
 
         // sample r
-        let r_rand = E::ScalarField::rand(rng);
+        let r_rand = BigInt::from_slice(num_bigint::Sign::NoSign, &[rng.gen::<u32>()]);
 
         // calculate R
-        let r = (w_hat * r_rand).into();
+        let r: BigInt = w_hat.clone() * r_rand.clone();
 
-        let (cm_sr, o_sr) = Utils::<E>::pedersen(pp.g.clone(), vec![s, r_rand], rng).unwrap();
+        // let generator = E::ScalarField::from(pp.g);
+
+        let generator = from_scalar_field::<E::ScalarField>(pp.g);
 
         // hash h
-        let h = hash_to_prime::<E>(
-            vec![
-                pp.g.clone(),
-                accum,
-                cm_u.clone(),
-                cm_sr.clone(),
-                w_hat,
-                r.clone(),
-            ],
-            vec![],
-            8,
-        )
-        .unwrap();
+        let h = BigInt::one();
 
         // calculate k
-        let k = r_rand + u_star * s * h;
+        let k = r_rand.clone() + u_star * s.clone() * h.clone();
 
         // PoKE => prf1
         // 1. Hash-to-prime(crs, A, B) => l
         // 2. Q = W^{lower(x / l)}, res = k
-        let large_b = (accum_hat * h + r).into();
+        let large_b = accum_hat * h.clone() + r.clone();
 
-        let l = hash_to_prime::<E>(vec![pp.g.clone(), w_hat.into(), large_b], vec![], 8).unwrap();
+        let l = BigInt::one();
 
         // let quot = k / l;
         // let rem = k - l * quot;
-        let (quot, rem) = Utils::<E>::div(k, l);
-        let q = (w_hat * quot).into();
-
-        println!("w: {:?}", w);
-        println!("w_hat: {:?}", w_hat);
-        assert_eq!((w_hat * (u_star * s)).into(), accum_hat, "[PoKE] Not Equal");
-
-        // println!("[Prf1] Q: {:?}", q);
-        // println!("[Prf1] acc_hat: {:?}", accum_hat);
-        // println!("[Prf1] r: {:?}", r);
-        // println!("[Prf1] calculated: {:?}", large_b);
+        let quot = k.clone() / l.clone();
+        let rem = k.clone() % l.clone();
+        let q = w_hat.clone() * quot.clone();
 
         // Hash-to-prime => l (이 때의 hash는 poseidon이겠지?)
         // 근데 앞의 PoKE랑 중복되서 skip 가능
-        // let l = hash_to_prime::<E>(vec![pp.g.clone(), w_hat.into(), large_b], vec![], 8).unwrap();
+
+        let mut circuit_u = Vec::new();
+
+        for u_i in u.clone() {
+            circuit_u.push(from_scalar_field(u_i));
+        }
+
+        let circuit_h = from_scalar_field(h);
+        let circuit_l = from_scalar_field(l);
+        let circuit_k = from_scalar_field(k);
+        let circuit_s = from_scalar_field(s);
+        let circuit_r = from_scalar_field(r.clone());
 
         // arithm_circuit: k - 원래는 [k mod l]인데 지금 l 모듈러 안해서 걍 계산한 circuit임
         // bound_circuit: 원래 1이 아니라 p_2lambda = ODD_PRIME[255]보다 큰지 확인하는 것임
-        let arithm_circuit = ArithmCircuit::<E::ScalarField>::new(h, l, k, u.clone(), s, r_rand);
-        let bound_circuit = BoundCircuit::<E::ScalarField>::new(E::ScalarField::one(), u.clone());
+        let arithm_circuit = ArithmCircuit::<E::ScalarField>::new(
+            circuit_h,
+            circuit_l,
+            circuit_k,
+            circuit_u.clone(),
+            circuit_s,
+            circuit_r,
+        );
+        let bound_circuit =
+            BoundCircuit::<E::ScalarField>::new(E::ScalarField::one(), circuit_u.clone());
 
         // arithm => prf2
         let arithm_prf =
@@ -167,7 +166,6 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         Ok(HarisaProof {
             w_hat,
             r,
-            cm_sr,
             q,
             k: rem,
             arithm_prf,
@@ -177,19 +175,17 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
 
     pub fn generate_harisa_opt_proof<R: RngCore + CryptoRng + Rng>(
         pp: HarisaPP<E>,
-        tree: Vec<E::G1Affine>,
-        accum: E::G1Affine,
-        cm_u: E::G1Affine,
-        u: Vec<E::ScalarField>,
-        o_u: E::ScalarField,
+        tree: Vec<BigInt>,
+        accum: BigInt,
+        u: Vec<BigInt>,
         rng: &mut R,
     ) -> Result<HarisaProof<E>, SynthesisError> {
-        let mut w: Vec<E::G1Affine> = Vec::new();
+        let mut w: Vec<BigInt> = Vec::new();
 
         let u_len = u.len();
 
         for i in 0..u_len {
-            w.push(tree[i]);
+            w.push(tree[i].clone());
         }
 
         let mut u_vec = u.clone();
@@ -200,9 +196,9 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
             w_len >>= 1;
 
             for i in 0..w_len {
-                (w[i], u_vec[i]) = assemble::<E>(
-                    u_vec.clone()[2 * i],
-                    u_vec.clone()[2 * i + 1],
+                (w[i], u_vec[i]) = assemble(
+                    u_vec[2 * i].clone(),
+                    u_vec[2 * i + 1].clone(),
                     w[2 * i].clone(),
                     w[2 * i + 1].clone(),
                 );
@@ -211,16 +207,14 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
             u_vec.truncate(w_len);
         }
 
-        let w_u = *w.first().unwrap();
+        let w_u = w.first().unwrap();
 
-        let mut u_star = E::ScalarField::one();
+        let mut u_star = BigInt::one();
         for u_i in u.clone().iter() {
             u_star *= u_i;
         }
 
-        assert_eq!((w_u * u_star).into(), accum, "[Preprocessing] Not Equal");
-
-        let proof = Self::generate_harisa_proof(pp, accum, cm_u, w_u, u, o_u, rng).unwrap();
+        let proof = Self::generate_harisa_proof(pp, accum, w_u.clone(), u, rng).unwrap();
 
         Ok(proof)
     }

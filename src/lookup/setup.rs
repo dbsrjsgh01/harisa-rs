@@ -11,6 +11,7 @@ use ark_crypto_primitives::snark::SNARK;
 use ark_ec::pairing::Pairing;
 use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
 use ark_std::rand::{CryptoRng, Rng, RngCore};
+use num_bigint::BigInt;
 
 impl<E, M> HarisaPlus<E, M>
 where
@@ -37,7 +38,7 @@ where
         Bound: ConstraintSynthesizer<E::ScalarField>,
         R: Rng + RngCore + CryptoRng,
     >(
-        set: Vec<E::ScalarField>,
+        set: Vec<BigInt>,
         ctt_circuit: CTT,
         wt_circuit: WT,
         arithm_circuit: Arithm,

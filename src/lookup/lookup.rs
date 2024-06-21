@@ -86,12 +86,13 @@ impl<E: Pairing, M: Membership<E>> Lookup<E, M> for HarisaPlus<E, M> {
     fn verify(
         pp: Self::PP,
         acc: Self::Accum,
-        cm_u: Self::CM,
-        cm_a: Self::CM,
-        cm_z: Self::CM,
+        // cm_u: Self::CM,
+        // cm_a: Self::CM,
+        // cm_z: Self::CM,
         prf: Self::Proof,
     ) -> Result<bool, Error> {
-        let res = Self::verify_lookup(pp, acc, cm_u, cm_a, cm_z, prf).unwrap();
+        // let res = Self::verify_lookup(pp, acc, cm_u, cm_a, cm_z, prf).unwrap();
+        let res = Self::verify_lookup(pp, acc, prf).unwrap();
 
         Ok(res)
     }

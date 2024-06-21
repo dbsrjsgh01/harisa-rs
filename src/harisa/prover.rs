@@ -7,7 +7,6 @@ use super::{
     preprocess::*,
     r1cs_to_qap::LibsnarkReduction,
 };
-use crate::utils::Utils;
 use crate::{
     cc_snark::{
         data_structure::{Proof, ProvingKey},

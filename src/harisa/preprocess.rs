@@ -7,8 +7,6 @@ use num_bigint::BigInt;
 use num_traits;
 use std::mem::swap;
 
-use crate::utils::Utils;
-
 pub fn preprocess(g: BigInt, set: Vec<BigInt>) -> Vec<BigInt> {
     let mut tree = Vec::new();
     tree.push(g.clone());
@@ -41,22 +39,6 @@ pub fn assemble(a: BigInt, b: BigInt, w_a: BigInt, w_b: BigInt) -> (BigInt, BigI
     let (d, x, y) = extended_gcd(a.clone(), b.clone());
     let res = w_a * y + w_b * x;
     (res, a * b)
-}
-
-pub fn extended_euclidean_algorithm<E: Pairing>(
-    a: E::ScalarField,
-    b: E::ScalarField,
-) -> (E::ScalarField, E::ScalarField) {
-    if b == E::ScalarField::zero() {
-        (E::ScalarField::one(), E::ScalarField::zero())
-    } else {
-        // 나눗셈, 나머지 구현 필요
-        let (q, r) = Utils::<E>::div(a, b);
-        let (x, y) = extended_euclidean_algorithm::<E>(b, r);
-        let new_y = x - y.clone() * q;
-
-        (y, new_y.into())
-    }
 }
 
 // ext_gcd(modify)
@@ -172,16 +154,5 @@ mod preprocess {
     #[test]
     fn test_preprocess_with_elem() {
         test_preprocess(8)
-    }
-
-    #[test]
-    fn test_ext_euclid() {
-        use super::extended_euclidean_algorithm;
-        use ark_bn254::{Bn254 as E, Fr as F};
-        let a = F::from(161u64);
-        let b = F::from(28u64);
-
-        let (x, y) = extended_euclidean_algorithm::<E>(a, b);
-        assert_eq!(y, F::from(6u64));
     }
 }

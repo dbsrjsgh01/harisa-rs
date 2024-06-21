@@ -2,7 +2,6 @@ use std::ops::Bound;
 
 use crate::{
     harisa::{arithm::ArithmCircuit, bound::BoundCircuit, harisa::Harisa},
-    utils::Utils,
     ConstraintF,
 };
 use ark_ec::{pairing::Pairing, AffineRepr};

@@ -51,7 +51,7 @@ where
         wt_circuit: WT,
         rng: &mut R,
     ) -> Result<LookupProof<E, M>, SynthesisError> {
-        let m_prf = M::prove(pp.m_pp, tree, accum, elem, rng).unwrap();
+        let m_prf = M::prove(pp.m_pp, tree, accum, lookup, rng).unwrap();
 
         let ctt_prf = Self::generate_cc_proof(&pp.ctt_ek, ctt_circuit, rng).unwrap();
 

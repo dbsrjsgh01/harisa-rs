@@ -10,7 +10,7 @@
 
 pub mod cc_snark;
 pub mod harisa;
-// pub mod linker;
+pub mod linker;
 pub mod lookup;
 pub mod utils;
 

@@ -33,11 +33,11 @@ impl<F: PrimeField> WTCircuit<F> {
         }
     }
 
-    pub fn mock(len: usize) -> Self {
+    pub fn mock(u_len: usize, a_len: usize, z_len: usize) -> Self {
         Self {
-            u: Some(vec![F::zero(); len]),
-            a: Some(vec![F::zero(); len]),
-            z: Some(vec![F::zero(); len]),
+            u: Some(vec![F::zero(); u_len]),
+            a: Some(vec![F::zero(); a_len]),
+            z: Some(vec![F::zero(); z_len]),
         }
     }
 }
@@ -126,7 +126,7 @@ mod wt {
 
         let (u, a, z) = test_cp_wt::<F>(U_LEN);
 
-        let circuit = WTCircuit::<F>::mock(U_LEN);
+        let circuit = WTCircuit::<F>::mock(U_LEN, U_LEN, U_LEN);
 
         let (ek, vk) = CcGroth16::<Bn254>::circuit_specific_setup(circuit, &mut rng).unwrap();
         let pvk = prepare_verifying_key::<Bn254>(&vk);

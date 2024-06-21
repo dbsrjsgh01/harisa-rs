@@ -58,7 +58,7 @@ pub struct LinkSnark<E: Pairing> {
 }
 
 impl<E: Pairing> Linker<E> for LinkSnark<E> {
-    type Instance = Vec<E::ScalarField>;
+    type Instance = Vec<E::G1Affine>;
     type Witness = Vec<E::ScalarField>;
 
     type CM = PhantomData<E>;

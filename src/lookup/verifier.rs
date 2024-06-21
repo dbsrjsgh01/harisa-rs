@@ -21,9 +21,9 @@ where
     pub fn verify_lookup(
         pp: LookupPP<E, M>,
         accum: BigInt,
-        cm_u: E::G1Affine,
-        cm_f: E::G1Affine,
-        cm_z: E::G1Affine,
+        // cm_u: E::G1Affine,
+        // cm_f: E::G1Affine,
+        // cm_z: E::G1Affine,
         proof: LookupProof<E, M>,
     ) -> Result<bool, SynthesisError> {
         let mem_verify = start_timer!(|| "mem::verify");

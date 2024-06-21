@@ -4,7 +4,7 @@ pub mod prover;
 pub mod setup;
 pub mod verifier;
 
-// mod test;
+mod test;
 
 pub mod copy_this_or_that;
 pub mod well_transformed;
@@ -58,9 +58,9 @@ pub trait Lookup<E: Pairing, M: Membership<E>> {
     fn verify(
         pp: Self::PP,
         acc: Self::Accum,
-        cm_u: Self::CM,
-        cm_a: Self::CM,
-        cm_z: Self::CM,
+        // cm_u: Self::CM,
+        // cm_a: Self::CM,
+        // cm_z: Self::CM,
         prf: Self::Proof,
     ) -> Result<bool, Error>;
 }

@@ -44,7 +44,7 @@ impl<F: PrimeField> WTCircuit<F> {
 
 impl<F: PrimeField> ConstraintSynthesizer<F> for WTCircuit<F> {
     fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
-        let u = Vec::<FpVar<F>>::new_input(cs.clone(), || {
+        let u = Vec::<FpVar<F>>::new_witness(cs.clone(), || {
             self.u.ok_or(SynthesisError::AssignmentMissing)
         })?;
 

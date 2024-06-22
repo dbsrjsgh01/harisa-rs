@@ -3,6 +3,7 @@
 pub mod matrix;
 pub mod relation_generator;
 pub mod snark;
+mod test;
 
 use ark_ec::{pairing::Pairing, AffineRepr};
 use ark_ff::{One, UniformRand};
@@ -20,7 +21,12 @@ pub trait Linker<E: Pairing> {
     type CM: Clone + Copy;
     type Proof: Clone;
 
-    fn setup<R: Rng>(ck: &[E::G1Affine], rng: &mut R) -> (Self::PP, Self::CRS);
+    fn setup<R: Rng>(
+        num: usize,
+        ck: Vec<E::G1Affine>,
+        snark_ck: Vec<E::G1Affine>,
+        rng: &mut R,
+    ) -> (Self::PP, Self::CRS);
 
     fn keygen<R: Rng>(pp: &Self::PP, crs: Self::CRS, rng: &mut R) -> (Self::EK, Self::VK);
 

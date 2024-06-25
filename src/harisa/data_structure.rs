@@ -9,6 +9,7 @@ pub struct HarisaPP<E: Pairing> {
     pub bound_ek: ProvingKey<E>,
     pub bound_vk: VerifyingKey<E>,
     pub g: BigInt,
+    pub mod_n: BigInt,
 }
 
 #[derive(Clone, Default, Debug, PartialEq)]

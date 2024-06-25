@@ -73,7 +73,7 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
             p_star *= p_i;
         }
 
-        let accum_hat = accum.clone() * p_star;
+        let accum_hat = accum.clone().modpow(&p_star, &pp.mod_n.clone());
 
         // ustar
         let mut u_star = BigInt::one();
@@ -103,13 +103,13 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         }
 
         // calculate w_hat
-        let w_hat: BigInt = w * s_bar;
+        let w_hat: BigInt = w.modpow(&s_bar, &pp.mod_n.clone());
 
         // sample r
         let r_rand = BigInt::from_slice(num_bigint::Sign::NoSign, &[rng.gen::<u32>()]);
 
         // calculate R
-        let r: BigInt = w_hat.clone() * r_rand.clone();
+        let r: BigInt = w_hat.clone().modpow(&r_rand.clone(), &pp.mod_n.clone());
 
         // let generator = E::ScalarField::from(pp.g);
         let generator = bigint_to_fr::<E::ScalarField>(pp.g);
@@ -126,7 +126,8 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         let k = r_rand.clone() + u_star * s.clone() * h.clone();
 
         // PoKE => prf1
-        let large_b = accum_hat * h.clone() + r.clone();
+        let large_b =
+            (accum_hat.modpow(&h.clone(), &pp.mod_n.clone()) * r.clone()) % pp.mod_n.clone();
 
         let constants = round_keys_contants_to_vec::<E::ScalarField>(&MIMC_7_91_BN254_ROUND_KEYS);
         let l = hash_to_prime(w_hat.clone(), large_b.clone(), &constants);
@@ -193,6 +194,11 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
             w.push(tree[i].clone());
         }
 
+        assert_eq!(
+            w[0].clone().modpow(&u[0].clone(), &pp.mod_n.clone()),
+            w[1].clone().modpow(&u[1].clone(), &pp.mod_n.clone()),
+        );
+
         let mut u_vec = u.clone();
 
         let mut w_len = u_len;
@@ -202,7 +208,7 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
 
             for i in 0..w_len {
                 (w[i], u_vec[i]) = assemble(
-                    BigInt::from_str(RSA_2048).unwrap(),
+                    pp.mod_n.clone(),
                     u_vec[2 * i].clone(),
                     u_vec[2 * i + 1].clone(),
                     w[2 * i].clone(),
@@ -214,11 +220,6 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         }
 
         let w_u = w.first().unwrap();
-
-        let mut u_star = BigInt::one();
-        for u_i in u.clone().iter() {
-            u_star *= u_i;
-        }
 
         let proof = Self::generate_harisa_proof(pp, accum, w_u.clone(), u, rng).unwrap();
 

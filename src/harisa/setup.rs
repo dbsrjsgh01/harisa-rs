@@ -66,7 +66,7 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         let (g, mod_n) = rsa_setup();
 
         let preprocessing = start_timer!(|| "HARiSA::Preprocess");
-        let table = precompute(g.clone(), mod_n, set);
+        let table = precompute(g.clone(), mod_n.clone(), set);
         end_timer!(preprocessing);
 
         Ok((
@@ -76,6 +76,7 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
                 bound_ek: bound_ek.clone(),
                 bound_vk: bound_vk.clone(),
                 g: g.clone(),
+                mod_n: mod_n.clone(),
             },
             table,
         ))

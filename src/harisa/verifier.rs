@@ -38,14 +38,16 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         let constants = round_keys_contants_to_vec::<E::ScalarField>(&MIMC_7_91_BN254_ROUND_KEYS);
         h = hash_to_prime(h, proof.r.clone(), &constants);
         // 1. acc_hat = acc^{h * prod_pi} + R
-        let acc_hat = accum * h + proof.r;
+        let acc_hat = (accum.modpow(&h, &pp.mod_n.clone()) * proof.r) % pp.mod_n.clone();
 
         let constants = round_keys_contants_to_vec::<E::ScalarField>(&MIMC_7_91_BN254_ROUND_KEYS);
         let l = hash_to_prime(proof.w_hat.clone(), acc_hat.clone(), &constants);
 
         // PoKE verify
         assert_eq!(
-            proof.q * l + proof.w_hat * proof.k,
+            proof.q.modpow(&l, &pp.mod_n.clone())
+                * (proof.w_hat.modpow(&proof.k, &pp.mod_n.clone()))
+                % pp.mod_n,
             acc_hat,
             "[PoKE] Verification Failed"
         );

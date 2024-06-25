@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::{
     cc_snark::{CcGroth16, Proof, ProvingKey, R1CSToQAP},
     harisa::{harisa::Harisa, Membership},
@@ -50,7 +52,10 @@ where
         ctt_circuit: CTT,
         wt_circuit: WT,
         rng: &mut R,
-    ) -> Result<LookupProof<E, M>, SynthesisError> {
+    ) -> Result<LookupProof<E, M>, SynthesisError>
+    where
+        <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
+    {
         let m_prf = M::prove(pp.m_pp, tree, accum, lookup, rng).unwrap();
 
         let ctt_prf = Self::generate_cc_proof(&pp.ctt_ek, ctt_circuit, rng).unwrap();

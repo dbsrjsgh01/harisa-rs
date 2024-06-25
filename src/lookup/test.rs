@@ -1,6 +1,8 @@
+use std::str::FromStr;
+
 use crate::{
     harisa::{
-        arithm::ArithmCircuit, bound::BoundCircuit, harisa::Harisa, preprocess::from_scalar_field,
+        arithm::ArithmCircuit, bound::BoundCircuit, harisa::Harisa, type_conversion::bigint_to_fr,
     },
     lookup::{copy_this_or_that::CTTCircuit, lookup::HarisaPlus, well_transformed::WTCircuit},
 };
@@ -11,7 +13,10 @@ use ark_std::{test_rng, One, Zero};
 use num_bigint::BigInt;
 use rand_core::{RngCore, SeedableRng};
 
-fn test_lookup<E: Pairing>(l_size: usize) {
+fn test_lookup<E: Pairing>(l_size: usize)
+where
+    <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
+{
     let set = set(256);
 
     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
@@ -62,23 +67,23 @@ fn test_lookup<E: Pairing>(l_size: usize) {
     let mut circuit_z: Vec<E::ScalarField> = Vec::new();
 
     for s_i in set.clone() {
-        circuit_set.push(from_scalar_field(s_i));
+        circuit_set.push(bigint_to_fr(s_i));
     }
 
     for s_hat_i in set_hat.clone() {
-        circuit_set_hat.push(from_scalar_field(s_hat_i));
+        circuit_set_hat.push(bigint_to_fr(s_hat_i));
     }
 
     for u_i in u.clone() {
-        circuit_u.push(from_scalar_field(u_i));
+        circuit_u.push(bigint_to_fr(u_i));
     }
 
     for u_hat_i in u_hat.clone() {
-        circuit_u_hat.push(from_scalar_field(u_hat_i));
+        circuit_u_hat.push(bigint_to_fr(u_hat_i));
     }
 
     for z_i in z.clone() {
-        circuit_z.push(from_scalar_field(z_i));
+        circuit_z.push(bigint_to_fr(z_i));
     }
 
     let ctt_circuit =

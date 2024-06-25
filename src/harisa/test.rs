@@ -1,4 +1,4 @@
-use std::ops::Bound;
+use std::{ops::Bound, str::FromStr};
 
 use crate::{
     harisa::{arithm::ArithmCircuit, bound::BoundCircuit, harisa::Harisa},
@@ -18,7 +18,10 @@ use super::{bound, prepare_verifying_key};
 
 const SET_SIZE: usize = 32;
 
-fn test_harisa<E: Pairing>(set: Vec<BigInt>, l_size: usize) {
+fn test_harisa<E: Pairing>(set: Vec<BigInt>, l_size: usize)
+where
+    <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
+{
     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
 
     // u commit

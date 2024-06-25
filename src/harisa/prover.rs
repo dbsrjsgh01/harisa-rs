@@ -1,11 +1,15 @@
+use std::str::FromStr;
+
 use super::{
     arithm::ArithmCircuit,
     bound::BoundCircuit,
+    constants::{MIMC_7_91_BN254_ROUND_KEYS, RSA_2048},
     data_structure::{HarisaPP, HarisaProof},
     harisa::Harisa,
-    hash_to_prime::hash_to_prime,
-    preprocess::*,
+    hash_to_prime::{hash_to_prime, round_keys_contants_to_vec},
+    precompute::*,
     r1cs_to_qap::LibsnarkReduction,
+    type_conversion::*,
 };
 use crate::{
     cc_snark::{
@@ -54,7 +58,10 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         w: BigInt,
         u: Vec<BigInt>,
         rng: &mut R,
-    ) -> Result<HarisaProof<E>, SynthesisError> {
+    ) -> Result<HarisaProof<E>, SynthesisError>
+    where
+        <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
+    {
         // pstar
         let mut p_star = BigInt::one();
 
@@ -66,7 +73,7 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
             p_star *= p_i;
         }
 
-        let accum_hat = accum * p_star;
+        let accum_hat = accum.clone() * p_star;
 
         // ustar
         let mut u_star = BigInt::one();
@@ -105,45 +112,41 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         let r: BigInt = w_hat.clone() * r_rand.clone();
 
         // let generator = E::ScalarField::from(pp.g);
-
-        let generator = from_scalar_field::<E::ScalarField>(pp.g);
+        let generator = bigint_to_fr::<E::ScalarField>(pp.g);
 
         // hash h
-        let h = BigInt::one();
+        let constants = round_keys_contants_to_vec::<E::ScalarField>(&MIMC_7_91_BN254_ROUND_KEYS);
+
+        let mut h = hash_to_prime(accum, w_hat.clone(), &constants);
+
+        let constants = round_keys_contants_to_vec::<E::ScalarField>(&MIMC_7_91_BN254_ROUND_KEYS);
+        h = hash_to_prime(h, r.clone(), &constants);
 
         // calculate k
         let k = r_rand.clone() + u_star * s.clone() * h.clone();
 
         // PoKE => prf1
-        // 1. Hash-to-prime(crs, A, B) => l
-        // 2. Q = W^{lower(x / l)}, res = k
         let large_b = accum_hat * h.clone() + r.clone();
 
-        let l = BigInt::one();
+        let constants = round_keys_contants_to_vec::<E::ScalarField>(&MIMC_7_91_BN254_ROUND_KEYS);
+        let l = hash_to_prime(w_hat.clone(), large_b.clone(), &constants);
 
-        // let quot = k / l;
-        // let rem = k - l * quot;
         let quot = k.clone() / l.clone();
         let rem = k.clone() % l.clone();
         let q = w_hat.clone() * quot.clone();
 
-        // Hash-to-prime => l (이 때의 hash는 poseidon이겠지?)
-        // 근데 앞의 PoKE랑 중복되서 skip 가능
-
         let mut circuit_u = Vec::new();
 
         for u_i in u.clone() {
-            circuit_u.push(from_scalar_field(u_i));
+            circuit_u.push(bigint_to_fr(u_i));
         }
 
-        let circuit_h = from_scalar_field(h);
-        let circuit_l = from_scalar_field(l);
-        let circuit_k = from_scalar_field(k);
-        let circuit_s = from_scalar_field(s);
-        let circuit_r = from_scalar_field(r.clone());
+        let circuit_h = bigint_to_fr(h);
+        let circuit_l = bigint_to_fr(l);
+        let circuit_k = bigint_to_fr(k);
+        let circuit_s = bigint_to_fr(s);
+        let circuit_r = bigint_to_fr(r.clone());
 
-        // arithm_circuit: k - 원래는 [k mod l]인데 지금 l 모듈러 안해서 걍 계산한 circuit임
-        // bound_circuit: 원래 1이 아니라 p_2lambda = ODD_PRIME[255]보다 큰지 확인하는 것임
         let arithm_circuit = ArithmCircuit::<E::ScalarField>::new(
             circuit_h,
             circuit_l,
@@ -178,7 +181,10 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         accum: BigInt,
         u: Vec<BigInt>,
         rng: &mut R,
-    ) -> Result<HarisaProof<E>, SynthesisError> {
+    ) -> Result<HarisaProof<E>, SynthesisError>
+    where
+        <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
+    {
         let mut w: Vec<BigInt> = Vec::new();
 
         let u_len = u.len();
@@ -196,6 +202,7 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
 
             for i in 0..w_len {
                 (w[i], u_vec[i]) = assemble(
+                    BigInt::from_str(RSA_2048).unwrap(),
                     u_vec[2 * i].clone(),
                     u_vec[2 * i + 1].clone(),
                     w[2 * i].clone(),
@@ -218,8 +225,3 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         Ok(proof)
     }
 }
-
-// 현재 수정해야 할 내용
-// 1. opt_proof: W_u 계산할 때 값 어떻게 table에서 뽑을 것인가?
-// 2. PoKE 값 맞는지 확인 ==> Assemble하면서 값이 다 틀어짐 (Ext-Euclid 때문일까 아님 이후 곱셈 때문일까)
-// 3. Hash-to-prime: MiMC7으로? OR Poseidon?

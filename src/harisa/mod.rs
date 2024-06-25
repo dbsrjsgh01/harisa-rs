@@ -1,4 +1,5 @@
 pub mod data_structure;
+pub mod precompute;
 pub mod prover;
 pub mod setup;
 pub mod verifier;
@@ -7,13 +8,13 @@ pub mod arithm;
 pub mod bound;
 pub mod constants;
 pub mod harisa;
-pub mod preprocess;
 
 pub mod hash_to_prime;
+pub mod type_conversion;
 
 mod test;
 
-use std::marker::PhantomData;
+use std::{marker::PhantomData, str::FromStr};
 
 pub use crate::cc_snark::*;
 
@@ -48,12 +49,16 @@ pub trait Membership<E: Pairing> {
         accum: BigInt,
         u: Vec<BigInt>,
         rng: &mut R,
-    ) -> Result<Self::Proof, Error>;
+    ) -> Result<Self::Proof, Error>
+    where
+        <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug;
 
     fn verify(
         pp: Self::Parameters,
         accum: BigInt,
         // c_u: E::G1Affine,
         proof: Self::Proof,
-    ) -> Result<bool, Error>;
+    ) -> Result<bool, Error>
+    where
+        <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug;
 }

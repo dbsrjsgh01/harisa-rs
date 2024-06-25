@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, str::FromStr};
 
 use crate::{
     cc_snark::{LibsnarkReduction, R1CSToQAP},
@@ -67,7 +67,10 @@ impl<E: Pairing, M: Membership<E>> Lookup<E, M> for HarisaPlus<E, M> {
         ctt_circuit: Option<CTT>,
         wt_circuit: Option<WT>,
         rng: &mut R,
-    ) -> Result<Self::Proof, Error> {
+    ) -> Result<Self::Proof, Error>
+    where
+        <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
+    {
         let prf = Self::generate_lookup_proof(
             pp,
             acc,
@@ -90,7 +93,10 @@ impl<E: Pairing, M: Membership<E>> Lookup<E, M> for HarisaPlus<E, M> {
         // cm_a: Self::CM,
         // cm_z: Self::CM,
         prf: Self::Proof,
-    ) -> Result<bool, Error> {
+    ) -> Result<bool, Error>
+    where
+        <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
+    {
         // let res = Self::verify_lookup(pp, acc, cm_u, cm_a, cm_z, prf).unwrap();
         let res = Self::verify_lookup(pp, acc, prf).unwrap();
 

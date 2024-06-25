@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, str::FromStr};
 
 use ark_ec::pairing::Pairing;
 use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
@@ -7,7 +7,7 @@ use num_bigint::BigInt;
 
 use crate::harisa::{
     data_structure::{HarisaPP, HarisaProof},
-    preprocess::*,
+    precompute::*,
     Membership,
 };
 
@@ -47,7 +47,10 @@ impl<E: Pairing> Membership<E> for Harisa<E> {
         accum: BigInt,
         u: Vec<BigInt>,
         rng: &mut R,
-    ) -> Result<Self::Proof, Error> {
+    ) -> Result<Self::Proof, Error>
+    where
+        <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
+    {
         let proof = Self::generate_harisa_opt_proof(pp, tree, accum, u, rng).unwrap();
 
         Ok(proof)
@@ -58,7 +61,10 @@ impl<E: Pairing> Membership<E> for Harisa<E> {
         accum: BigInt,
         // c_u: E::G1Affine,
         proof: Self::Proof,
-    ) -> Result<bool, Error> {
+    ) -> Result<bool, Error>
+    where
+        <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
+    {
         // let res = Self::harisa_verify(pp, accum, c_u, proof).unwrap();
         let res = Self::harisa_verify(pp, accum, proof).unwrap();
 

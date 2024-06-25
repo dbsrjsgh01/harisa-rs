@@ -12,7 +12,6 @@ pub mod cc_snark;
 pub mod harisa;
 pub mod linker;
 pub mod lookup;
-pub mod utils;
 
 pub use ark_crypto_primitives::*;
 pub use ark_ec::*;

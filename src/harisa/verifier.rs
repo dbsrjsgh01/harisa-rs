@@ -1,5 +1,6 @@
 use crate::cc_snark::CcGroth16;
-use crate::harisa::hash_to_prime::hash_to_prime;
+use crate::harisa::constants::*;
+use crate::harisa::hash_to_prime::{hash_to_prime, round_keys_contants_to_vec};
 use crate::ConstraintF;
 
 use ark_ec::pairing::Pairing;
@@ -8,6 +9,7 @@ use ark_relations::r1cs::SynthesisError;
 use ark_std::One;
 use core::ops::{AddAssign, MulAssign};
 use num_bigint::BigInt;
+use std::str::FromStr;
 
 use super::prepare_verifying_key;
 use super::r1cs_to_qap::R1CSToQAP;
@@ -22,32 +24,24 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         accum: BigInt,
         // cm_u: E::G1Affine,
         proof: HarisaProof<E>,
-    ) -> Result<bool, SynthesisError> {
+    ) -> Result<bool, SynthesisError>
+    where
+        <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
+    {
         // proof = w_hat, r, cm_sr, q, k, arithm_prf, bound_prf
 
         // hash h
-        let h = BigInt::one();
 
-        // let h = hash_to_prime::<E>(
-        //     vec![
-        //         pp.g.clone(),
-        //         accum,
-        //         cm_u.clone(),
-        //         proof.cm_sr.clone(),
-        //         proof.w_hat.into(),
-        //         proof.r.clone(),
-        //     ],
-        //     vec![],
-        //     8,
-        // )
-        // .unwrap();
+        let constants = round_keys_contants_to_vec::<E::ScalarField>(&MIMC_7_91_BN254_ROUND_KEYS);
+        let mut h = hash_to_prime(accum.clone(), proof.w_hat.clone(), &constants);
+
+        let constants = round_keys_contants_to_vec::<E::ScalarField>(&MIMC_7_91_BN254_ROUND_KEYS);
+        h = hash_to_prime(h, proof.r.clone(), &constants);
         // 1. acc_hat = acc^{h * prod_pi} + R
         let acc_hat = accum * h + proof.r;
 
-        // hash-to-prime => l
-        // let l =
-        //     hash_to_prime::<E>(vec![pp.g.clone(), proof.w_hat.into(), acc_hat], vec![], 8).unwrap();
-        let l = BigInt::one();
+        let constants = round_keys_contants_to_vec::<E::ScalarField>(&MIMC_7_91_BN254_ROUND_KEYS);
+        let l = hash_to_prime(proof.w_hat.clone(), acc_hat.clone(), &constants);
 
         // PoKE verify
         assert_eq!(

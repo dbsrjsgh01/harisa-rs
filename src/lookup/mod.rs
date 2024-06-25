@@ -9,6 +9,8 @@ mod test;
 pub mod copy_this_or_that;
 pub mod well_transformed;
 
+use std::str::FromStr;
+
 use crate::harisa::Membership;
 
 use ark_ec::pairing::Pairing;
@@ -53,7 +55,9 @@ pub trait Lookup<E: Pairing, M: Membership<E>> {
         ctt_circuit: Option<CTT>,
         wt_circuit: Option<WT>,
         rng: &mut R,
-    ) -> Result<Self::Proof, Error>;
+    ) -> Result<Self::Proof, Error>
+    where
+        <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug;
 
     fn verify(
         pp: Self::PP,
@@ -62,5 +66,7 @@ pub trait Lookup<E: Pairing, M: Membership<E>> {
         // cm_a: Self::CM,
         // cm_z: Self::CM,
         prf: Self::Proof,
-    ) -> Result<bool, Error>;
+    ) -> Result<bool, Error>
+    where
+        <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug;
 }

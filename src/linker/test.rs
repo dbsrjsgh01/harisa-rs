@@ -1,7 +1,7 @@
 use crate::{
     cc_snark::{prepare_verifying_key, CcGroth16},
     harisa::{arithm::ArithmCircuit, constants::ODD_PRIME},
-    linker::{snark::LinkSnark, Linker},
+    linker::{matrix::inner_product, snark::LinkSnark, Linker},
 };
 
 use ark_crypto_primitives::snark::SNARK;
@@ -87,6 +87,18 @@ fn test_cp_arithm_with_linker<E: Pairing>(n: usize) {
     let cc_prf = CcGroth16::<E>::prove(&cc_ek, arithm_circuit, &mut rng).unwrap();
 
     let snark_witness = [cc_prf.open];
+
+    let test_result = inner_product::<E>(
+        [
+            snark_witness.clone().to_vec(),
+            vec![h.unwrap(), l.unwrap(), k.unwrap()],
+        ]
+        .concat()
+        .as_slice(),
+        cc_ek.ck.as_slice(),
+    );
+
+    assert_eq!(test_result, cc_prf.cm); // instance들 check => assertion 통과
 
     let link_witness = LinkSnark::<E>::generate_witness(
         vec![o_u, o_sr],

@@ -1,15 +1,19 @@
 use std::marker::PhantomData;
+use std::str::FromStr;
 
-use crate::cc_snark::{
-    data_structure::{ProvingKey, VerifyingKey},
-    r1cs_to_qap::R1CSToQAP,
-    CcGroth16,
-};
 use crate::ConstraintF;
+use crate::{
+    cc_snark::{
+        data_structure::{ProvingKey, VerifyingKey},
+        r1cs_to_qap::R1CSToQAP,
+        CcGroth16,
+    },
+    harisa::constants::RSA_2048,
+};
 
 use super::data_structure::HarisaPP;
 use super::harisa::Harisa;
-use super::preprocess::*;
+use super::precompute::*;
 
 use ark_crypto_primitives::snark::*;
 use ark_ec::pairing::Pairing;
@@ -62,7 +66,7 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         let g = BigInt::from_slice(num_bigint::Sign::NoSign, &[rng.gen::<u32>()]);
 
         let preprocessing = start_timer!(|| "HARiSA::Preprocess");
-        let table = preprocess(g.clone(), set);
+        let table = precompute(g.clone(), BigInt::from_str(RSA_2048).unwrap(), set);
         end_timer!(preprocessing);
 
         Ok((

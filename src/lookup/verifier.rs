@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::{
     cc_snark::{prepare_verifying_key, CcGroth16, R1CSToQAP},
     harisa::{Membership, Proof},
@@ -25,7 +27,10 @@ where
         // cm_f: E::G1Affine,
         // cm_z: E::G1Affine,
         proof: LookupProof<E, M>,
-    ) -> Result<bool, SynthesisError> {
+    ) -> Result<bool, SynthesisError>
+    where
+        <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
+    {
         let mem_verify = start_timer!(|| "mem::verify");
         // let mem_result = M::verify(pp.m_pp, accum, cm_u, proof.m_prf).unwrap();
         let mem_result = M::verify(pp.m_pp, accum, proof.m_prf).unwrap();

@@ -39,11 +39,11 @@ impl<F: PrimeField> CTTCircuit<F> {
 
 impl<F: PrimeField> ConstraintSynthesizer<F> for CTTCircuit<F> {
     fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
-        let u = Vec::<FpVar<F>>::new_witness(cs.clone(), || {
+        let u = Vec::<FpVar<F>>::new_input(cs.clone(), || {
             self.u.ok_or(SynthesisError::AssignmentMissing)
         })?;
 
-        let a = Vec::<FpVar<F>>::new_witness(cs.clone(), || {
+        let a = Vec::<FpVar<F>>::new_input(cs.clone(), || {
             self.a.ok_or(SynthesisError::AssignmentMissing)
         })?;
 

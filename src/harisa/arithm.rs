@@ -52,6 +52,18 @@ impl<F: PrimeField> ArithmCircuit<F> {
 
 impl<F: PrimeField> ConstraintSynthesizer<F> for ArithmCircuit<F> {
     fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
+        let u = Vec::<FpVar<F>>::new_witness(cs.clone(), || {
+            self.u.ok_or(SynthesisError::AssignmentMissing)
+        })?;
+
+        let s = FpVar::new_witness(cs.clone(), || {
+            self.s.ok_or(SynthesisError::AssignmentMissing)
+        })?;
+
+        let r = FpVar::new_witness(cs.clone(), || {
+            self.r.ok_or(SynthesisError::AssignmentMissing)
+        })?;
+
         let h = FpVar::new_input(cs.clone(), || {
             self.h.ok_or(SynthesisError::AssignmentMissing)
         })?;
@@ -64,17 +76,6 @@ impl<F: PrimeField> ConstraintSynthesizer<F> for ArithmCircuit<F> {
             self.k.ok_or(SynthesisError::AssignmentMissing)
         })?;
 
-        let u = Vec::<FpVar<F>>::new_witness(cs.clone(), || {
-            self.u.ok_or(SynthesisError::AssignmentMissing)
-        })?;
-
-        let s = FpVar::new_witness(cs.clone(), || {
-            self.s.ok_or(SynthesisError::AssignmentMissing)
-        })?;
-
-        let r = FpVar::new_witness(cs.clone(), || {
-            self.r.ok_or(SynthesisError::AssignmentMissing)
-        })?;
         let mut computed_k = s * h;
 
         for u_i in u.clone().iter() {

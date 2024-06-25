@@ -6,7 +6,7 @@ use super::{
     constants::{MIMC_7_91_BN254_ROUND_KEYS, RSA_2048},
     data_structure::{HarisaPP, HarisaProof},
     harisa::Harisa,
-    hash_to_prime::{hash_to_prime, round_keys_contants_to_vec},
+    hash_to_prime::{gen_bigint_range, hash_to_prime, round_keys_contants_to_vec},
     precompute::*,
     r1cs_to_qap::LibsnarkReduction,
     type_conversion::*,
@@ -103,38 +103,32 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         }
 
         // calculate w_hat
-        let w_hat: BigInt = w.modpow(&s_bar, &pp.mod_n.clone());
+        let w_hat = w.modpow(&s_bar, &pp.mod_n.clone());
 
         // sample r
-        let r_rand = BigInt::from_slice(num_bigint::Sign::NoSign, &[rng.gen::<u32>()]);
+        let r_rand = gen_bigint_range(rng, &BigInt::from(2), &(pp.mod_n.clone() - 1));
 
         // calculate R
-        let r: BigInt = w_hat.clone().modpow(&r_rand.clone(), &pp.mod_n.clone());
-
-        // let generator = E::ScalarField::from(pp.g);
-        let generator = bigint_to_fr::<E::ScalarField>(pp.g);
+        let r = w_hat.clone().modpow(&r_rand.clone(), &pp.mod_n.clone());
 
         // hash h
         let constants = round_keys_contants_to_vec::<E::ScalarField>(&MIMC_7_91_BN254_ROUND_KEYS);
 
         let mut h = hash_to_prime(accum, w_hat.clone(), &constants);
-
-        let constants = round_keys_contants_to_vec::<E::ScalarField>(&MIMC_7_91_BN254_ROUND_KEYS);
         h = hash_to_prime(h, r.clone(), &constants);
 
         // calculate k
-        let k = r_rand.clone() + u_star * s.clone() * h.clone();
+        let k = r_rand.clone() + u_star.clone() * s.clone() * h.clone();
 
         // PoKE => prf1
         let large_b =
             (accum_hat.modpow(&h.clone(), &pp.mod_n.clone()) * r.clone()) % pp.mod_n.clone();
 
-        let constants = round_keys_contants_to_vec::<E::ScalarField>(&MIMC_7_91_BN254_ROUND_KEYS);
         let l = hash_to_prime(w_hat.clone(), large_b.clone(), &constants);
 
         let quot = k.clone() / l.clone();
         let rem = k.clone() % l.clone();
-        let q = w_hat.clone() * quot.clone();
+        let q = w_hat.clone().modpow(&quot.clone(), &pp.mod_n.clone());
 
         let mut circuit_u = Vec::new();
 
@@ -146,7 +140,7 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         let circuit_l = bigint_to_fr(l);
         let circuit_k = bigint_to_fr(k);
         let circuit_s = bigint_to_fr(s);
-        let circuit_r = bigint_to_fr(r.clone());
+        let circuit_r = bigint_to_fr(r_rand);
 
         let arithm_circuit = ArithmCircuit::<E::ScalarField>::new(
             circuit_h,

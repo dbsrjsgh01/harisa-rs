@@ -36,12 +36,12 @@ impl<F: PrimeField> BoundCircuit<F> {
 
 impl<F: PrimeField> ConstraintSynthesizer<F> for BoundCircuit<F> {
     fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
-        let p = FpVar::new_input(cs.clone(), || {
-            self.p.ok_or(SynthesisError::AssignmentMissing)
+        let u = Vec::<FpVar<F>>::new_input(cs.clone(), || {
+            self.u.ok_or(SynthesisError::AssignmentMissing)
         })?;
 
-        let u = Vec::<FpVar<F>>::new_witness(cs.clone(), || {
-            self.u.ok_or(SynthesisError::AssignmentMissing)
+        let p = FpVar::new_input(cs.clone(), || {
+            self.p.ok_or(SynthesisError::AssignmentMissing)
         })?;
 
         for u_i in u.clone().iter() {

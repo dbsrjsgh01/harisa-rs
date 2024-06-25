@@ -28,25 +28,36 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
     where
         <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
     {
-        // proof = w_hat, r, cm_sr, q, k, arithm_prf, bound_prf
+        // pstar
+        let mut p_star = BigInt::one();
+
+        let mut p = Vec::new();
+
+        for i in 0..ODD_PRIME.len() {
+            let p_i = BigInt::from(ODD_PRIME[i]);
+            p.push(p_i.clone());
+            p_star *= p_i;
+        }
+
+        let accum_hat = accum.clone().modpow(&p_star, &pp.mod_n.clone());
 
         // hash h
-
         let constants = round_keys_contants_to_vec::<E::ScalarField>(&MIMC_7_91_BN254_ROUND_KEYS);
         let mut h = hash_to_prime(accum.clone(), proof.w_hat.clone(), &constants);
-
-        let constants = round_keys_contants_to_vec::<E::ScalarField>(&MIMC_7_91_BN254_ROUND_KEYS);
         h = hash_to_prime(h, proof.r.clone(), &constants);
-        // 1. acc_hat = acc^{h * prod_pi} + R
-        let acc_hat = (accum.modpow(&h, &pp.mod_n.clone()) * proof.r) % pp.mod_n.clone();
 
-        let constants = round_keys_contants_to_vec::<E::ScalarField>(&MIMC_7_91_BN254_ROUND_KEYS);
+        // 1. acc_hat = acc^{h * prod_pi} + R
+        let acc_hat = (accum_hat.modpow(&h, &pp.mod_n.clone()) * proof.r) % pp.mod_n.clone();
+
         let l = hash_to_prime(proof.w_hat.clone(), acc_hat.clone(), &constants);
+
+        assert!(proof.k.clone() >= BigInt::from(0), "[PoKE] Wrong range (k)");
+        assert!(proof.k.clone() < l.clone(), "[PoKE] Wrong range (k)");
 
         // PoKE verify
         assert_eq!(
-            proof.q.modpow(&l, &pp.mod_n.clone())
-                * (proof.w_hat.modpow(&proof.k, &pp.mod_n.clone()))
+            (proof.q.modpow(&l, &pp.mod_n.clone())
+                * (proof.w_hat.modpow(&proof.k, &pp.mod_n.clone())))
                 % pp.mod_n,
             acc_hat,
             "[PoKE] Verification Failed"

@@ -65,12 +65,12 @@ pub fn primality_test(input: &BigInt, round: u32) -> bool {
 pub fn hash_to_prime<F: PrimeField>(x_l: BigInt, x_r: BigInt, constants: &[F]) -> BigInt {
     let mut hash_prime = hash_mimc(x_l.clone(), x_r.clone(), &constants);
     let mut rng = thread_rng();
+    let mut input_rnd = x_r.clone();
 
     while !primality_test(&hash_prime, 20) {
-        let rnd = gen_bigint_range(&mut rng, &BigInt::from(2), &(hash_prime - 2));
-        hash_prime = hash_mimc(x_l.clone(), x_r.clone() + rnd, &constants);
+        input_rnd = &input_rnd + BigInt::from(1);
+        hash_prime = hash_mimc(x_l.clone(), input_rnd.clone(), &constants);
     }
-
     hash_prime
 }
 

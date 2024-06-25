@@ -3,8 +3,8 @@ use ark_ff::{BigInteger, BigInteger256, Field, PrimeField, UniformRand};
 use ark_serialize::CanonicalDeserialize;
 use ark_std::vec::Vec;
 use ark_std::{rand::Rng, One, Zero};
-use num_bigint::BigInt;
-use num_traits::{self, Num, Pow};
+use num_bigint::{BigInt, Sign};
+use num_traits::{self, Num, Pow, Signed};
 use std::mem::swap;
 
 use crate::harisa::constants;
@@ -33,7 +33,7 @@ pub fn precompute(g: BigInt, mod_n: BigInt, set: Vec<BigInt>) -> Vec<BigInt> {
 
     if set_size > 1 {
         set_size >>= 1;
-        let left_set: Vec<BigInt> = right_set.clone().drain(set_size..).collect();
+        let left_set: Vec<BigInt> = right_set.drain(set_size..).collect();
         let prod_left = prod_set(left_set.clone());
         let left_res = g.modpow(&prod_left, &mod_n);
         let left = precompute(left_res, mod_n.clone(), right_set.clone());
@@ -43,7 +43,6 @@ pub fn precompute(g: BigInt, mod_n: BigInt, set: Vec<BigInt>) -> Vec<BigInt> {
         let right: Vec<BigInt> = precompute(right_res, mod_n, left_set);
         pre_tree = [left, right].concat();
     }
-
     pre_tree
 }
 
@@ -70,13 +69,22 @@ pub fn extended_gcd(a: BigInt, b: BigInt) -> (BigInt, BigInt, BigInt) {
 
 pub fn assemble(mod_n: BigInt, a: BigInt, b: BigInt, w_a: BigInt, w_b: BigInt) -> (BigInt, BigInt) {
     let (_, x, y) = extended_gcd(a.clone(), b.clone());
-    let w_a_y = w_a.modpow(&y, &mod_n);
-    let w_b_x = w_b.modpow(&x, &mod_n);
+    let w_a_y = modpow(w_a, y, mod_n.clone());
+    let w_b_x = modpow(w_b, x, mod_n.clone());
     let res = w_a_y * w_b_x;
 
     let w = res % mod_n;
 
     (w, a * b)
+}
+
+pub fn modpow(x: BigInt, y: BigInt, mod_n: BigInt) -> BigInt {
+    let mut res = x.modpow(&y.abs(), &mod_n);
+    if y.is_negative() {
+        res = res.modinv(&mod_n).unwrap();
+    }
+
+    res
 }
 
 #[cfg(test)]

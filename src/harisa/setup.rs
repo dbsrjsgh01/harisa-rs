@@ -63,10 +63,10 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
 
         end_timer!(harisa_generation);
 
-        let g = BigInt::from_slice(num_bigint::Sign::NoSign, &[rng.gen::<u32>()]);
+        let (g, mod_n) = rsa_setup();
 
         let preprocessing = start_timer!(|| "HARiSA::Preprocess");
-        let table = precompute(g.clone(), BigInt::from_str(RSA_2048).unwrap(), set);
+        let table = precompute(g.clone(), mod_n, set);
         end_timer!(preprocessing);
 
         Ok((

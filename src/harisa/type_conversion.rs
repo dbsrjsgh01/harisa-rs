@@ -6,9 +6,20 @@ use num_traits::{self, Num, Pow};
 
 pub fn bigint_to_fr<F: PrimeField>(x: BigInt) -> F {
     let (_, mut x_bytes) = x.to_bytes_be();
+
+    if x_bytes.len() > 32 {
+        (_, x_bytes) = (x % BigInt::parse_bytes(
+            b"21888242871839275222246405745257275088548364400416034343698204186575808495617",
+            10,
+        )
+        .unwrap())
+        .to_bytes_be();
+    }
+
     while x_bytes.len() < 32 {
         x_bytes.insert(0, 0);
     }
+
     assert!(
         x_bytes.len() == 32,
         "The byte representation must be 32 bytes long."

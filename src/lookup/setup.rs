@@ -11,7 +11,10 @@ use crate::{
 use ark_crypto_primitives::snark::SNARK;
 use ark_ec::pairing::Pairing;
 use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
-use ark_std::rand::{CryptoRng, Rng, RngCore};
+use ark_std::{
+    rand::{CryptoRng, Rng, RngCore},
+    UniformRand,
+};
 use num_bigint::BigInt;
 
 impl<E, M, LNK> HarisaPlus<E, M, LNK>
@@ -20,6 +23,19 @@ where
     M: Membership<E, LNK>,
     LNK: Linker<E>,
 {
+    pub fn generate_link_parameters<R: RngCore + CryptoRng>(
+        n: usize,
+        ck: Vec<E::G1Affine>,
+        snark_ck: Vec<E::G1Affine>,
+        mode: &str,
+        rng: &mut R,
+    ) -> Result<(LNK::PP, LNK::EK, LNK::VK), SynthesisError> {
+        let (link_pp, link_crs) = LNK::setup(n, ck, snark_ck, mode, rng);
+        let (link_ek, link_vk) = LNK::keygen(&link_pp.clone(), link_crs, rng);
+
+        Ok((link_pp, link_ek, link_vk))
+    }
+
     pub fn generate_cc_snark_parameters<
         C: ConstraintSynthesizer<E::ScalarField>,
         R: RngCore + CryptoRng,
@@ -47,16 +63,42 @@ where
         bound_circuit: Bound,
         rng: &mut R,
     ) -> Result<(LookupPP<E, M, LNK>, M::Table), SynthesisError> {
+        let num = set.len();
+
         let lookup_generation = start_timer!(|| "HARiSA+::Generator");
 
         let (m_pp, tree) = M::setup(set, arithm_circuit, bound_circuit, rng).unwrap();
 
+        let mut ck = Vec::new();
+
+        for _ in 0..num + 1 {
+            ck.push(E::G1Affine::rand(rng));
+        }
+
         let ctt_generation = start_timer!(|| "ctt::generator");
         let (ctt_ek, ctt_vk) = Self::generate_cc_snark_parameters(ctt_circuit, rng).unwrap();
+
+        let (ctt_lnk_pp, ctt_lnk_ek, ctt_lnk_vk) = Self::generate_link_parameters(
+            ctt_ek.ck.len() - 1,
+            ck.clone(),
+            ctt_ek.ck.as_slice().to_vec(),
+            "ctt",
+            rng,
+        )
+        .unwrap();
         end_timer!(ctt_generation);
 
         let wt_generation = start_timer!(|| "wt::generator");
         let (wt_ek, wt_vk) = Self::generate_cc_snark_parameters(wt_circuit, rng).unwrap();
+
+        let (wt_lnk_pp, wt_lnk_ek, wt_lnk_vk) = Self::generate_link_parameters(
+            wt_ek.ck.len() - 1,
+            ck.clone(),
+            wt_ek.ck.as_slice().to_vec(),
+            "wt",
+            rng,
+        )
+        .unwrap();
         end_timer!(wt_generation);
 
         end_timer!(lookup_generation);
@@ -66,8 +108,15 @@ where
                 m_pp,
                 ctt_ek,
                 ctt_vk,
+                ctt_lnk_pp,
+                ctt_lnk_ek,
+                ctt_lnk_vk,
                 wt_ek,
                 wt_vk,
+                wt_lnk_pp,
+                wt_lnk_ek,
+                wt_lnk_vk,
+                ck,
             },
             tree,
         ))

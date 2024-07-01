@@ -21,6 +21,8 @@ pub struct LookupPP<E: Pairing, M: Membership<E, LNK>, LNK: Linker<E>> {
     pub wt_lnk_pp: LNK::PP,
     pub wt_lnk_ek: LNK::EK,
     pub wt_lnk_vk: LNK::VK,
+
+    pub ck: Vec<E::G1Affine>,
 }
 
 impl<E: Pairing, M: Membership<E, LNK>, LNK: Linker<E>> Clone for LookupPP<E, M, LNK> {
@@ -37,6 +39,7 @@ impl<E: Pairing, M: Membership<E, LNK>, LNK: Linker<E>> Clone for LookupPP<E, M,
             wt_lnk_pp: self.wt_lnk_pp.clone(),
             wt_lnk_ek: self.wt_lnk_ek.clone(),
             wt_lnk_vk: self.wt_lnk_vk.clone(),
+            ck: self.ck.clone(),
         }
     }
 }

@@ -72,6 +72,7 @@ impl<E: Pairing, M: Membership<E, LNK>, LNK: Linker<E>> Lookup<E, M, LNK>
         tree: Self::Table,
         lookup: Vec<BigInt>,
         elem: Vec<BigInt>,
+        rand: Vec<BigInt>,
         ctt_circuit: Option<CTT>,
         wt_circuit: Option<WT>,
         rng: &mut R,
@@ -85,6 +86,7 @@ impl<E: Pairing, M: Membership<E, LNK>, LNK: Linker<E>> Lookup<E, M, LNK>
             tree,
             lookup,
             elem,
+            rand,
             ctt_circuit.unwrap(),
             wt_circuit.unwrap(),
             rng,
@@ -97,16 +99,15 @@ impl<E: Pairing, M: Membership<E, LNK>, LNK: Linker<E>> Lookup<E, M, LNK>
     fn verify(
         pp: Self::PP,
         acc: Self::Accum,
-        // cm_u: Self::CM,
-        // cm_a: Self::CM,
-        // cm_z: Self::CM,
+        cm_u: Self::CM,
+        cm_a: Self::CM,
+        cm_z: Self::CM,
         prf: Self::Proof,
     ) -> Result<bool, Error>
     where
         <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
     {
-        // let res = Self::verify_lookup(pp, acc, cm_u, cm_a, cm_z, prf).unwrap();
-        let res = Self::verify_lookup(pp, acc, prf).unwrap();
+        let res = Self::verify_lookup(pp, acc, cm_u, cm_a, cm_z, prf).unwrap();
 
         Ok(res)
     }

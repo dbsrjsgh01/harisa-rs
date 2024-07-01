@@ -29,7 +29,7 @@ use num_bigint::BigInt;
 pub type Error = Box<dyn ark_std::error::Error>;
 
 pub trait Membership<E: Pairing, LNK: Linker<E>> {
-    type Parameters;
+    type Parameters: Clone;
     type Table;
     type Proof;
 

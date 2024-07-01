@@ -4,6 +4,7 @@ use crate::{
     harisa::{
         arithm::ArithmCircuit, bound::BoundCircuit, harisa::Harisa, type_conversion::bigint_to_fr,
     },
+    linker::snark::LinkSnark,
     lookup::{copy_this_or_that::CTTCircuit, lookup::HarisaPlus, well_transformed::WTCircuit},
 };
 
@@ -46,15 +47,16 @@ where
     let ctt_circuit = CTTCircuit::<E::ScalarField>::mock(set.len(), l_size);
     let wt_circuit = WTCircuit::<E::ScalarField>::mock(l_size, l_size, z.len());
 
-    let (pp, tree) = HarisaPlus::<E, Harisa<E>>::generate_lookup_parameters(
-        set_hat.clone(),
-        ctt_circuit,
-        wt_circuit,
-        arithm_circuit,
-        bound_circuit,
-        &mut rng,
-    )
-    .unwrap();
+    let (pp, tree) =
+        HarisaPlus::<E, Harisa<E, LinkSnark<E>>, LinkSnark<E>>::generate_lookup_parameters(
+            set_hat.clone(),
+            ctt_circuit,
+            wt_circuit,
+            arithm_circuit,
+            bound_circuit,
+            &mut rng,
+        )
+        .unwrap();
 
     // let (cm_u, o_u) = Utils::<E>::pedersen(pp.m_pp.g.clone(), u.clone(), &mut rng).unwrap();
 
@@ -95,7 +97,7 @@ where
         circuit_z.clone(),
     );
 
-    let proof = HarisaPlus::<E, Harisa<E>>::generate_lookup_proof(
+    let proof = HarisaPlus::<E, Harisa<E, LinkSnark<E>>, LinkSnark<E>>::generate_lookup_proof(
         pp.clone(),
         accum.clone(),
         tree,
@@ -103,15 +105,17 @@ where
         z.clone(),
         ctt_circuit,
         wt_circuit,
-        // cm_u,
-        // o_u,
+        cm_u,
+        o_u,
         &mut rng,
     )
     .unwrap();
 
     assert!(
-        // HarisaPlus::<E, Harisa<E>>::verify_lookup(pp, accum, cm_u, cm_u, cm_u, proof).unwrap(),
-        HarisaPlus::<E, Harisa<E>>::verify_lookup(pp, accum, proof).unwrap(),
+        HarisaPlus::<E, Harisa<E, LinkSnark<E>>, LinkSnark<E>>::verify_lookup(
+            pp, accum, cm_u, cm_u, cm_u, proof
+        )
+        .unwrap(),
         "[Harisa+] Verify Failed"
     );
 }

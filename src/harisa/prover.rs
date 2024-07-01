@@ -18,6 +18,7 @@ use crate::{
         CcGroth16,
     },
     harisa::constants::ODD_PRIME,
+    linker::{matrix::inner_product, snark::LinkSnark, Linker},
 };
 
 use ark_crypto_primitives::snark::*;
@@ -33,7 +34,25 @@ use ark_std::{
 };
 use num_bigint::BigInt;
 
-impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
+impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
+    fn generate_link_proof<R>(
+        pp: LNK::PP,
+        ek: LNK::EK,
+        rand: Vec<E::ScalarField>,
+        witness: Vec<E::ScalarField>,
+        snark_witness: Vec<E::ScalarField>,
+        rng: &mut R,
+    ) -> Result<(LNK::Proof, LNK::CM), SynthesisError>
+    where
+        R: Rng + RngCore + CryptoRng,
+    {
+        let link_witness = LNK::generate_witness(rand, witness, snark_witness);
+
+        let (link_prf, link_cm) = LNK::prove(&pp, &ek, link_witness, rng);
+
+        Ok((link_prf, link_cm))
+    }
+
     fn generate_cc_proof<C, R>(
         pk: &ProvingKey<E>,
         circuit: C,
@@ -53,12 +72,14 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
     }
 
     pub fn generate_harisa_proof<R: RngCore + CryptoRng + Rng>(
-        pp: HarisaPP<E>,
+        pp: HarisaPP<E, LNK>,
         accum: BigInt,
         w: BigInt,
+        cm_u: E::G1Affine,
         u: Vec<BigInt>,
+        o_u: E::ScalarField,
         rng: &mut R,
-    ) -> Result<HarisaProof<E>, SynthesisError>
+    ) -> Result<HarisaProof<E, LNK>, SynthesisError>
     where
         <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
     {
@@ -157,26 +178,88 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         let arithm_prf =
             Self::generate_cc_proof(&pp.arithm_ek.clone(), arithm_circuit, rng).unwrap();
 
+        let o_sr = E::ScalarField::rand(rng);
+
+        let cm_sr = (pp.ck[1].clone() * circuit_s.clone()
+            + pp.ck[2].clone() * circuit_r.clone()
+            + pp.ck[0].clone() * o_sr)
+            .into();
+
+        let arithm_witness = [
+            vec![arithm_prf.open],
+            circuit_u.clone(),
+            vec![circuit_s, circuit_r],
+        ]
+        .concat();
+
+        let mut arithm_ck = pp.arithm_ek.ck.clone();
+
+        arithm_ck.truncate(u.clone().len() + 3);
+
+        let arithm_lnk_cm = inner_product::<E>(arithm_witness.as_slice(), arithm_ck.as_slice());
+
+        let (arithm_lnk_prf, arithm_lnk_cm_aux) = Self::generate_link_proof(
+            pp.arithm_lnk_pp.clone(),
+            pp.arithm_lnk_ek.clone(),
+            vec![o_u, o_sr],
+            [
+                circuit_u.clone(),
+                vec![circuit_s.clone(), circuit_r.clone()],
+            ]
+            .concat(),
+            vec![arithm_prf.open],
+            rng,
+        )
+        .unwrap();
+
         // bound => prf3
         let bound_prf = Self::generate_cc_proof(&pp.bound_ek.clone(), bound_circuit, rng).unwrap();
 
+        let bound_witness = [vec![bound_prf.open], circuit_u.clone()].concat();
+
+        let mut bound_ck = pp.bound_ek.ck.clone();
+
+        bound_ck.truncate(u.clone().len() + 1);
+
+        let bound_lnk_cm = inner_product::<E>(bound_witness.as_slice(), bound_ck.as_slice());
+
+        let (bound_lnk_prf, bound_lnk_cm_aux) = Self::generate_link_proof(
+            pp.bound_lnk_pp.clone(),
+            pp.bound_lnk_ek.clone(),
+            vec![o_u],
+            circuit_u.clone(),
+            vec![bound_prf.open],
+            rng,
+        )
+        .unwrap();
+
         Ok(HarisaProof {
+            cm_u,
+            cm_sr,
             w_hat,
             r,
             q,
             k: rem,
             arithm_prf,
             bound_prf,
+            arithm_lnk_prf,
+            bound_lnk_prf,
+            arithm_lnk_cm,
+            bound_lnk_cm,
+            arithm_lnk_cm_aux,
+            bound_lnk_cm_aux,
         })
     }
 
     pub fn generate_harisa_opt_proof<R: RngCore + CryptoRng + Rng>(
-        pp: HarisaPP<E>,
+        pp: HarisaPP<E, LNK>,
         tree: Vec<BigInt>,
         accum: BigInt,
+        cm_u: E::G1Affine,
         u: Vec<BigInt>,
+        o_u: E::ScalarField,
         rng: &mut R,
-    ) -> Result<HarisaProof<E>, SynthesisError>
+    ) -> Result<HarisaProof<E, LNK>, SynthesisError>
     where
         <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
     {
@@ -215,7 +298,7 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
 
         let w_u = w.first().unwrap();
 
-        let proof = Self::generate_harisa_proof(pp, accum, w_u.clone(), u, rng).unwrap();
+        let proof = Self::generate_harisa_proof(pp, accum, w_u.clone(), cm_u, u, o_u, rng).unwrap();
 
         Ok(proof)
     }

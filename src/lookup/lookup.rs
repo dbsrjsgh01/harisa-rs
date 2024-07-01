@@ -3,6 +3,7 @@ use std::{marker::PhantomData, str::FromStr};
 use crate::{
     cc_snark::{LibsnarkReduction, R1CSToQAP},
     harisa::Membership,
+    linker::Linker,
     lookup::{
         data_structure::{LookupPP, LookupProof},
         Lookup,
@@ -16,16 +17,23 @@ use num_bigint::BigInt;
 
 pub type Error = Box<dyn ark_std::error::Error>;
 
-pub struct HarisaPlus<E: Pairing, M: Membership<E>, QAP: R1CSToQAP = LibsnarkReduction> {
-    _curve: PhantomData<(E, M, QAP)>,
+pub struct HarisaPlus<
+    E: Pairing,
+    M: Membership<E, LNK>,
+    LNK: Linker<E>,
+    QAP: R1CSToQAP = LibsnarkReduction,
+> {
+    _curve: PhantomData<(E, M, LNK, QAP)>,
 }
 
-impl<E: Pairing, M: Membership<E>> Lookup<E, M> for HarisaPlus<E, M> {
+impl<E: Pairing, M: Membership<E, LNK>, LNK: Linker<E>> Lookup<E, M, LNK>
+    for HarisaPlus<E, M, LNK>
+{
     type Accum = BigInt;
     type Table = M::Table;
     type CM = E::G1Affine;
-    type PP = LookupPP<E, M>;
-    type Proof = LookupProof<E, M>;
+    type PP = LookupPP<E, M, LNK>;
+    type Proof = LookupProof<E, M, LNK>;
 
     fn setup<
         CTT: ConstraintSynthesizer<E::ScalarField>,

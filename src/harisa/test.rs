@@ -1,7 +1,10 @@
 use std::{ops::Bound, str::FromStr};
 
 use crate::{
-    harisa::{arithm::ArithmCircuit, bound::BoundCircuit, harisa::Harisa},
+    harisa::{
+        arithm::ArithmCircuit, bound::BoundCircuit, harisa::Harisa, type_conversion::bigint_to_fr,
+    },
+    linker::Linker,
     ConstraintF,
 };
 use ark_ec::{pairing::Pairing, AffineRepr};
@@ -18,9 +21,10 @@ use super::{bound, prepare_verifying_key};
 
 const SET_SIZE: usize = 32;
 
-fn test_harisa<E: Pairing>(set: Vec<BigInt>, l_size: usize)
+fn test_harisa<E: Pairing, LNK: Linker<E>>(set: Vec<BigInt>, l_size: usize)
 where
     <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
+    LNK: Clone,
 {
     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
 
@@ -35,7 +39,7 @@ where
     let bound_circuit = BoundCircuit::<E::ScalarField>::mock(l_size);
 
     // setup
-    let (pp, tree) = Harisa::<E>::generate_harisa_parameters(
+    let (pp, tree) = Harisa::<E, LNK>::generate_harisa_parameters(
         set.clone(),
         arithm_circuit,
         bound_circuit,
@@ -47,14 +51,32 @@ where
 
     let accum = tree[0].clone().modpow(&set[0].clone(), &pp.mod_n.clone());
 
+    let mut u_scalar: Vec<E::ScalarField> = Vec::new();
+    for u_i in u.clone() {
+        u_scalar.push(bigint_to_fr(u_i));
+    }
+
+    let o_u = E::ScalarField::rand(&mut rng);
+    let mut cm_u = (pp.ck[0].clone() * o_u).into();
+
+    for (g_i, u_i) in pp
+        .ck
+        .clone()
+        .iter()
+        .skip(1)
+        .zip(u_scalar.clone().into_iter())
+    {
+        cm_u = (cm_u + *g_i * u_i).into();
+    }
+
     // prove: Circuit을 prove 내에 집어넣는 방법
-    let proof = Harisa::<E>::generate_harisa_opt_proof(
+    let proof = Harisa::<E, LNK>::generate_harisa_opt_proof(
         pp.clone(),
         tree,
         accum.clone(),
-        // cm_u.clone(),
+        cm_u.clone(),
         u.clone(),
-        // o_u.clone(),
+        o_u.clone(),
         &mut rng,
     )
     .unwrap();
@@ -62,7 +84,7 @@ where
     // verify
     assert!(
         // Harisa::<E>::harisa_verify(pp, accum, cm_u, proof).unwrap(),
-        Harisa::<E>::harisa_verify(pp, accum, proof).unwrap(),
+        Harisa::<E, LNK>::harisa_verify(pp, accum, cm_u.clone(), proof).unwrap(),
         "[Harisa] Verify Failed"
     );
 }
@@ -82,12 +104,11 @@ fn set(n: usize) -> Vec<BigInt> {
 
 #[test]
 fn test_harisa_bn254() {
-    // use crate::harisa::constants::ODD_PRIME;
+    use crate::linker::snark::LinkSnark;
     use ark_bn254::{Bn254 as E, Fr as F};
     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
 
-    // let set = set::<Bn254>(256);
     let set = set(256);
 
-    test_harisa::<E>(set, SET_SIZE);
+    test_harisa::<E, LinkSnark<E>>(set, SET_SIZE);
 }

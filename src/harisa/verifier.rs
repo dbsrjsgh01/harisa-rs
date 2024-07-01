@@ -1,6 +1,7 @@
 use crate::cc_snark::CcGroth16;
 use crate::harisa::constants::*;
 use crate::harisa::hash_to_prime::{hash_to_prime, round_keys_contants_to_vec};
+use crate::linker::Linker;
 use crate::ConstraintF;
 
 use ark_ec::pairing::Pairing;
@@ -18,12 +19,12 @@ use super::{
     harisa::Harisa,
 };
 
-impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
+impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
     pub fn harisa_verify(
-        pp: HarisaPP<E>,
+        pp: HarisaPP<E, LNK>,
         accum: BigInt,
-        // cm_u: E::G1Affine,
-        proof: HarisaProof<E>,
+        cm_u: E::G1Affine,
+        proof: HarisaProof<E, LNK>,
     ) -> Result<bool, SynthesisError>
     where
         <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
@@ -63,20 +64,43 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
             "[PoKE] Verification Failed"
         );
 
+        let arithm_instance = LNK::generate_instance(
+            vec![proof.cm_u, proof.cm_sr],
+            proof.arithm_lnk_cm,
+            proof.arithm_lnk_cm_aux,
+        );
+
+        let bound_instance =
+            LNK::generate_instance(vec![proof.cm_u], proof.bound_lnk_cm, proof.bound_lnk_cm_aux);
+
         let arithm_pvk = prepare_verifying_key(&pp.arithm_vk.clone());
         let arithm_verify = start_timer!(|| "cparithm::verify");
         let arithm_result =
             CcGroth16::<E, QAP>::verify_proof(&arithm_pvk, &proof.arithm_prf, &[]).unwrap();
+        let arithm_link_result = LNK::verify(
+            &pp.arithm_lnk_pp,
+            &pp.arithm_lnk_vk,
+            &arithm_instance,
+            &proof.arithm_lnk_prf,
+        );
         end_timer!(arithm_verify);
 
         let bound_pvk = prepare_verifying_key(&pp.bound_vk.clone());
         let bound_verify = start_timer!(|| "cpbound::verify");
         let bound_result =
             CcGroth16::<E, QAP>::verify_proof(&bound_pvk, &proof.bound_prf, &[]).unwrap();
+        let bound_link_result = LNK::verify(
+            &pp.bound_lnk_pp,
+            &pp.bound_lnk_vk,
+            &bound_instance,
+            &proof.bound_lnk_prf,
+        );
         end_timer!(bound_verify);
 
         assert_eq!(arithm_result, true, "[Arithm] Verification Failed");
+        assert_eq!(arithm_link_result, true, "[Arithm] Linker Failed");
         assert_eq!(bound_result, true, "[Bound] Verification Failed");
+        assert_eq!(bound_link_result, true, "[Bound] Linker Failed");
 
         Ok(true)
     }

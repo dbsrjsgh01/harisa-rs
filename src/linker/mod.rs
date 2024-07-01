@@ -25,6 +25,7 @@ pub trait Linker<E: Pairing> {
         num: usize,
         ck: Vec<E::G1Affine>,
         snark_ck: Vec<E::G1Affine>,
+        mode: &str,
         rng: &mut R,
     ) -> (Self::PP, Self::CRS);
 
@@ -38,4 +39,16 @@ pub trait Linker<E: Pairing> {
     ) -> (Self::Proof, Self::CM);
 
     fn verify(pp: &Self::PP, vk: &Self::VK, instance: &Self::Instance, prf: &Self::Proof) -> bool;
+
+    fn generate_witness(
+        r: Vec<E::ScalarField>,
+        witness: Vec<E::ScalarField>,
+        snark_witness: Vec<E::ScalarField>,
+    ) -> Self::Witness;
+
+    fn generate_instance(
+        cm: Vec<E::G1Affine>,
+        snark_cm: E::G1Affine,
+        aux_cm: Self::CM,
+    ) -> Self::Instance;
 }

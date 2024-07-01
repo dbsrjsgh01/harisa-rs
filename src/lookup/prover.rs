@@ -3,6 +3,7 @@ use std::str::FromStr;
 use crate::{
     cc_snark::{CcGroth16, Proof, ProvingKey, R1CSToQAP},
     harisa::{harisa::Harisa, Membership},
+    linker::Linker,
     lookup::{
         data_structure::{LookupPP, LookupProof},
         lookup::HarisaPlus,
@@ -15,10 +16,11 @@ use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
 use ark_std::rand::{CryptoRng, Rng, RngCore};
 use num_bigint::BigInt;
 
-impl<E, M, QAP> HarisaPlus<E, M, QAP>
+impl<E, M, LNK, QAP> HarisaPlus<E, M, LNK, QAP>
 where
     E: Pairing,
-    M: Membership<E>,
+    M: Membership<E, LNK>,
+    LNK: Linker<E>,
     QAP: R1CSToQAP,
 {
     fn generate_cc_proof<C, R>(
@@ -39,12 +41,28 @@ where
         Ok(cc_prf)
     }
 
+    fn generate_link_proof<R>(
+        pp: LNK::PP,
+        ek: LNK::EK,
+        witness: LNK::Witness,
+        rng: &mut R,
+    ) -> Result<(LNK::Proof, LNK::CM), SynthesisError>
+    where
+        R: Rng + RngCore + CryptoRng,
+    {
+        let lnk_snark_prover_time = start_timer!(|| "linker::Prover");
+
+        let (lnk_prf, lnk_cm) = LNK::prove(&pp, &ek, witness, rng);
+
+        Ok((lnk_prf, lnk_cm))
+    }
+
     pub fn generate_lookup_proof<
         CTT: ConstraintSynthesizer<E::ScalarField>,
         WT: ConstraintSynthesizer<E::ScalarField>,
         R: Rng + RngCore + CryptoRng,
     >(
-        pp: LookupPP<E, M>,
+        pp: LookupPP<E, M, LNK>,
         accum: BigInt,
         tree: M::Table,
         lookup: Vec<BigInt>,
@@ -52,11 +70,11 @@ where
         ctt_circuit: CTT,
         wt_circuit: WT,
         rng: &mut R,
-    ) -> Result<LookupProof<E, M>, SynthesisError>
+    ) -> Result<LookupProof<E, M, LNK>, SynthesisError>
     where
         <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
     {
-        let m_prf = M::prove(pp.m_pp, tree, accum, lookup, rng).unwrap();
+        let m_prf = M::prove(pp.m_pp, tree, accum, cm_u, lookup, o_u, rng).unwrap();
 
         let ctt_prf = Self::generate_cc_proof(&pp.ctt_ek, ctt_circuit, rng).unwrap();
 

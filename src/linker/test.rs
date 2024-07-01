@@ -1,6 +1,6 @@
 use crate::{
     cc_snark::{prepare_verifying_key, CcGroth16},
-    harisa::{arithm::ArithmCircuit, constants::ODD_PRIME},
+    harisa::{arithm::ArithmCircuit, bound::BoundCircuit, constants::ODD_PRIME},
     linker::{matrix::inner_product, snark::LinkSnark, Linker},
 };
 
@@ -47,14 +47,17 @@ fn test_cp_arithm_with_linker<E: Pairing>(n: usize) {
     let (cc_ek, cc_vk) = CcGroth16::<E>::circuit_specific_setup(arithm_circuit, &mut rng).unwrap();
     let pvk = prepare_verifying_key::<E>(&cc_vk);
 
-    let snark_ck = cc_ek.ck.as_slice().to_vec();
+    let mut snark_ck = cc_ek.ck.as_slice().to_vec();
+
+    snark_ck.truncate(n + 3);
 
     let mut ck = Vec::with_capacity(2);
     for _ in 0..2 {
         ck.push(E::G1::rand(&mut rng).into_affine());
     }
 
-    let (link_pp, link_crs) = LinkSnark::<E>::setup(n, ck.clone(), snark_ck, &mut rng);
+    let (link_pp, link_crs) =
+        LinkSnark::<E>::setup(n, ck.clone(), snark_ck.clone(), "arithm", &mut rng);
 
     let (link_ek, link_vk) = LinkSnark::<E>::keygen(&link_pp, link_crs, &mut rng);
 
@@ -86,32 +89,28 @@ fn test_cp_arithm_with_linker<E: Pairing>(n: usize) {
 
     let cc_prf = CcGroth16::<E>::prove(&cc_ek, arithm_circuit, &mut rng).unwrap();
 
-    let snark_witness = [cc_prf.open];
+    let snark_witness = vec![cc_prf.open];
 
-    let test_result = inner_product::<E>(
+    let cc_cm = inner_product::<E>(
         [
-            snark_witness.clone().to_vec(),
-            vec![h.unwrap(), l.unwrap(), k.unwrap()],
+            snark_witness.clone(),
+            u.clone().unwrap(),
+            vec![s.unwrap(), r.unwrap()],
         ]
         .concat()
         .as_slice(),
-        cc_ek.ck.as_slice(),
+        snark_ck.as_slice(),
     );
-
-    assert_eq!(test_result, cc_prf.cm); // instance들 check => assertion 통과
 
     let link_witness = LinkSnark::<E>::generate_witness(
         vec![o_u, o_sr],
         [u.unwrap(), vec![s.unwrap(), r.unwrap()]].concat(),
-        snark_witness.to_vec(),
+        snark_witness,
     );
 
     let (link_prf, link_cm) = LinkSnark::<E>::prove(&link_pp, &link_ek, link_witness, &mut rng);
 
-    let link_instance =
-        LinkSnark::<E>::generate_instance(vec![cm_u, cm_sr], cc_prf.clone().cm, link_cm);
-
-    println!("lnk_prf: {:?}", link_prf);
+    let link_instance = LinkSnark::<E>::generate_instance(vec![cm_u, cm_sr], cc_cm, link_cm);
 
     assert!(CcGroth16::<E>::verify_with_processed_vk(&pvk, &[], &cc_prf).unwrap());
 

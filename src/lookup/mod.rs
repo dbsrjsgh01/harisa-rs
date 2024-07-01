@@ -11,7 +11,7 @@ pub mod well_transformed;
 
 use std::str::FromStr;
 
-use crate::harisa::Membership;
+use crate::{harisa::Membership, linker::Linker};
 
 use ark_ec::pairing::Pairing;
 use ark_relations::r1cs::ConstraintSynthesizer;
@@ -20,7 +20,7 @@ use num_bigint::BigInt;
 
 pub type Error = Box<dyn ark_std::error::Error>;
 
-pub trait Lookup<E: Pairing, M: Membership<E>> {
+pub trait Lookup<E: Pairing, M: Membership<E, LNK>, LNK: Linker<E>> {
     type PP;
     type Table;
     type Accum;

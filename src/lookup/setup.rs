@@ -1,6 +1,7 @@
 use crate::{
     cc_snark::{prepare_verifying_key, CcGroth16, ProvingKey, VerifyingKey},
     harisa::{harisa::Harisa, Membership},
+    linker::Linker,
     lookup::{
         data_structure::{LookupPP, LookupProof},
         lookup::HarisaPlus,
@@ -13,10 +14,11 @@ use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
 use ark_std::rand::{CryptoRng, Rng, RngCore};
 use num_bigint::BigInt;
 
-impl<E, M> HarisaPlus<E, M>
+impl<E, M, LNK> HarisaPlus<E, M, LNK>
 where
     E: Pairing,
-    M: Membership<E>,
+    M: Membership<E, LNK>,
+    LNK: Linker<E>,
 {
     pub fn generate_cc_snark_parameters<
         C: ConstraintSynthesizer<E::ScalarField>,
@@ -44,7 +46,7 @@ where
         arithm_circuit: Arithm,
         bound_circuit: Bound,
         rng: &mut R,
-    ) -> Result<(LookupPP<E, M>, M::Table), SynthesisError> {
+    ) -> Result<(LookupPP<E, M, LNK>, M::Table), SynthesisError> {
         let lookup_generation = start_timer!(|| "HARiSA+::Generator");
 
         let (m_pp, tree) = M::setup(set, arithm_circuit, bound_circuit, rng).unwrap();

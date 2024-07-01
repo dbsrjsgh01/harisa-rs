@@ -17,6 +17,7 @@ mod test;
 use std::{marker::PhantomData, str::FromStr};
 
 pub use crate::cc_snark::*;
+use crate::linker::Linker;
 
 use ark_crypto_primitives::snark::*;
 use ark_ec::pairing::Pairing;
@@ -27,8 +28,8 @@ use num_bigint::BigInt;
 
 pub type Error = Box<dyn ark_std::error::Error>;
 
-pub trait Membership<E: Pairing> {
-    type Parameters: Clone;
+pub trait Membership<E: Pairing, LNK: Linker<E>> {
+    type Parameters;
     type Table;
     type Proof;
 
@@ -47,7 +48,9 @@ pub trait Membership<E: Pairing> {
         pp: Self::Parameters,
         tree: Self::Table,
         accum: BigInt,
+        cm_u: E::G1Affine,
         u: Vec<BigInt>,
+        o_u: E::ScalarField,
         rng: &mut R,
     ) -> Result<Self::Proof, Error>
     where
@@ -56,7 +59,7 @@ pub trait Membership<E: Pairing> {
     fn verify(
         pp: Self::Parameters,
         accum: BigInt,
-        // c_u: E::G1Affine,
+        c_u: E::G1Affine,
         proof: Self::Proof,
     ) -> Result<bool, Error>
     where

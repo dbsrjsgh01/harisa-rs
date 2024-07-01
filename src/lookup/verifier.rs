@@ -3,6 +3,7 @@ use std::str::FromStr;
 use crate::{
     cc_snark::{prepare_verifying_key, CcGroth16, R1CSToQAP},
     harisa::{Membership, Proof},
+    linker::Linker,
     lookup::{
         data_structure::{LookupPP, LookupProof},
         lookup::HarisaPlus,
@@ -14,26 +15,27 @@ use ark_ec::pairing::Pairing;
 use ark_relations::r1cs::SynthesisError;
 use num_bigint::BigInt;
 
-impl<E, M, QAP> HarisaPlus<E, M, QAP>
+impl<E, M, LNK, QAP> HarisaPlus<E, M, LNK, QAP>
 where
     E: Pairing,
-    M: Membership<E>,
+    M: Membership<E, LNK>,
+    LNK: Linker<E>,
     QAP: R1CSToQAP,
 {
     pub fn verify_lookup(
-        pp: LookupPP<E, M>,
+        pp: LookupPP<E, M, LNK>,
         accum: BigInt,
-        // cm_u: E::G1Affine,
-        // cm_f: E::G1Affine,
-        // cm_z: E::G1Affine,
-        proof: LookupProof<E, M>,
+        cm_u: E::G1Affine,
+        cm_f: E::G1Affine,
+        cm_z: E::G1Affine,
+        proof: LookupProof<E, M, LNK>,
     ) -> Result<bool, SynthesisError>
     where
         <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
     {
         let mem_verify = start_timer!(|| "mem::verify");
-        // let mem_result = M::verify(pp.m_pp, accum, cm_u, proof.m_prf).unwrap();
-        let mem_result = M::verify(pp.m_pp, accum, proof.m_prf).unwrap();
+        let mem_result = M::verify(pp.m_pp, accum, cm_u, proof.m_prf).unwrap();
+        // let mem_result = M::verify(pp.m_pp, accum, proof.m_prf).unwrap();
         end_timer!(mem_verify);
 
         let ctt_pvk = prepare_verifying_key(&pp.ctt_vk.clone());

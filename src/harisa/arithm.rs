@@ -52,15 +52,15 @@ impl<F: PrimeField> ArithmCircuit<F> {
 
 impl<F: PrimeField> ConstraintSynthesizer<F> for ArithmCircuit<F> {
     fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
-        let u = Vec::<FpVar<F>>::new_witness(cs.clone(), || {
+        let u = Vec::<FpVar<F>>::new_input(cs.clone(), || {
             self.u.ok_or(SynthesisError::AssignmentMissing)
         })?;
 
-        let s = FpVar::new_witness(cs.clone(), || {
+        let s = FpVar::new_input(cs.clone(), || {
             self.s.ok_or(SynthesisError::AssignmentMissing)
         })?;
 
-        let r = FpVar::new_witness(cs.clone(), || {
+        let r = FpVar::new_input(cs.clone(), || {
             self.r.ok_or(SynthesisError::AssignmentMissing)
         })?;
 

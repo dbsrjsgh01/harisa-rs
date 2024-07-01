@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 use std::str::FromStr;
 
+use crate::linker::Linker;
 use crate::ConstraintF;
 use crate::{
     cc_snark::{
@@ -25,7 +26,20 @@ use ark_std::{
 };
 use num_bigint::BigInt;
 
-impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
+impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
+    pub fn generate_link_parameters<R: RngCore + CryptoRng>(
+        n: usize,
+        ck: Vec<E::G1Affine>,
+        snark_ck: Vec<E::G1Affine>,
+        mode: &str,
+        rng: &mut R,
+    ) -> Result<(LNK::PP, LNK::EK, LNK::VK), SynthesisError> {
+        let (link_pp, link_crs) = LNK::setup(n, ck, snark_ck, mode, rng);
+        let (link_ek, link_vk) = LNK::keygen(&link_pp.clone(), link_crs, rng);
+
+        Ok((link_pp, link_ek, link_vk))
+    }
+
     pub fn generate_cc_snark_parameters<
         C: ConstraintSynthesizer<E::ScalarField>,
         R: RngCore + CryptoRng,
@@ -48,17 +62,41 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
         arithm_circuit: Arithm,
         bound_circuit: Bound,
         rng: &mut R,
-    ) -> Result<(HarisaPP<E>, Vec<BigInt>), SynthesisError> {
+    ) -> Result<(HarisaPP<E, LNK>, Vec<BigInt>), SynthesisError> {
         let num = set.len();
         let harisa_generation = start_timer!(|| "HARiSA::Generator");
+
+        let mut ck = Vec::new();
+
+        for _ in 0..num + 1 {
+            ck.push(E::G1Affine::rand(rng));
+        }
 
         let arithm_generation = start_timer!(|| "arithm::generator");
         let (arithm_ek, arithm_vk) =
             Self::generate_cc_snark_parameters(arithm_circuit, rng).unwrap();
+
+        let (arithm_lnk_pp, arithm_lnk_ek, arithm_lnk_vk) = Self::generate_link_parameters(
+            arithm_ek.ck.len() - 6,
+            ck.clone(),
+            arithm_ek.ck.as_slice().to_vec(),
+            "arithm",
+            rng,
+        )
+        .unwrap();
         end_timer!(arithm_generation);
 
         let bound_generation = start_timer!(|| "bound::generator");
         let (bound_ek, bound_vk) = Self::generate_cc_snark_parameters(bound_circuit, rng).unwrap();
+
+        let (bound_lnk_pp, bound_lnk_ek, bound_lnk_vk) = Self::generate_link_parameters(
+            bound_ek.ck.len() - 2,
+            ck.clone(),
+            bound_ek.ck.as_slice().to_vec(),
+            "bound",
+            rng,
+        )
+        .unwrap();
         end_timer!(bound_generation);
 
         end_timer!(harisa_generation);
@@ -73,10 +111,17 @@ impl<E: Pairing, QAP: R1CSToQAP> Harisa<E, QAP> {
             HarisaPP {
                 arithm_ek: arithm_ek.clone(),
                 arithm_vk: arithm_vk.clone(),
+                arithm_lnk_pp,
+                arithm_lnk_ek,
+                arithm_lnk_vk,
                 bound_ek: bound_ek.clone(),
                 bound_vk: bound_vk.clone(),
+                bound_lnk_pp,
+                bound_lnk_ek,
+                bound_lnk_vk,
                 g: g.clone(),
                 mod_n: mod_n.clone(),
+                ck,
             },
             table,
         ))

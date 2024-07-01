@@ -79,12 +79,19 @@ impl<E: Pairing> Linker<E> for LinkSnark<E> {
         num: usize,
         ck: Vec<E::G1Affine>,
         snark_ck: Vec<E::G1Affine>,
+        mode: &str,
         rng: &mut R,
     ) -> (Self::PP, Self::CRS) {
         let g1 = E::G1::rand(rng).into_affine();
         let g2 = E::G2::rand(rng).into_affine();
 
-        let link_crs = generate_cp_arithm_relation::<E>(num, ck, snark_ck);
+        let link_crs = match mode {
+            "arithm" => generate_cp_arithm_relation::<E>(num, ck, snark_ck),
+            "bound" => generate_cp_bound_relation::<E>(num, ck, snark_ck),
+            "ctt" => generate_cp_ctt_relation::<E>(num, ck, snark_ck),
+            "wt" => generate_cp_wt_relation::<E>(num, ck, snark_ck),
+            _ => SparseMatrix::new(0, 0),
+        };
 
         let l = link_crs.nr;
         let t = link_crs.nc;
@@ -142,6 +149,26 @@ impl<E: Pairing> Linker<E> for LinkSnark<E> {
         g2.push(E::G2Prepared::from(-vk.a.into_group()));
         E::TargetField::one() == E::multi_pairing(g1.into_iter(), g2.into_iter()).0
     }
+
+    fn generate_witness(
+        r: Vec<E::ScalarField>,
+        u: Vec<E::ScalarField>,
+        snark_witness: Vec<E::ScalarField>,
+    ) -> <LinkSnark<E> as Linker<E>>::Witness {
+        let witness = generate_cp_witness::<E>(r, u, snark_witness).unwrap();
+
+        witness
+    }
+
+    fn generate_instance(
+        cm: Vec<E::G1Affine>,
+        snark_cm: E::G1Affine,
+        aux_cm: <LinkSnark<E> as Linker<E>>::CM,
+    ) -> <LinkSnark<E> as Linker<E>>::Instance {
+        let instance = generate_cp_instance::<E>(cm, snark_cm).unwrap();
+
+        instance
+    }
 }
 
 impl<E: Pairing> LinkSnark<E> {
@@ -154,25 +181,5 @@ impl<E: Pairing> LinkSnark<E> {
             res.add_assign(&tmp); // Add the result of the multiplication to `res`
         }
         res.into_affine() // Convert `res` to an affine point and return it
-    }
-
-    pub fn generate_witness(
-        r: Vec<E::ScalarField>,
-        u: Vec<E::ScalarField>,
-        snark_witness: Vec<E::ScalarField>,
-    ) -> <LinkSnark<E> as Linker<E>>::Witness {
-        let witness = generate_cp_arithm_witness::<E>(r, u, snark_witness).unwrap();
-
-        witness
-    }
-
-    pub fn generate_instance(
-        cm: Vec<E::G1Affine>,
-        snark_cm: E::G1Affine,
-        aux_cm: <LinkSnark<E> as Linker<E>>::CM,
-    ) -> <LinkSnark<E> as Linker<E>>::Instance {
-        let instance = generate_cp_arithm_instance::<E>(cm, snark_cm).unwrap();
-
-        instance
     }
 }

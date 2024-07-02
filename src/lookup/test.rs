@@ -21,34 +21,38 @@ fn test_lookup<E: Pairing>(l_size: usize)
 where
     <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
 {
-    let set = set(256);
+    let mut set_hat = Vec::new();
+    for p_i in PRIME.clone() {
+        set_hat.push(BigInt::from(p_i));
+    }
 
-    let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
+    let (mut set, mut z) = (Vec::new(), Vec::new());
 
-    let mut u = Vec::new();
+    for s_i in set_hat.clone() {
+        // 2^14 = 16384
+        let f_i = s_i.clone() / 2_i128.pow(14);
+        let z_i = s_i % 2_i128.pow(14);
 
+        set.push(f_i);
+        z.push(z_i);
+    }
+
+    let mut f_hat = Vec::new();
+    let mut f = Vec::new();
+    let mut z_f = Vec::new();
     for i in 0..l_size {
-        u.push(set[i].clone());
+        f_hat.push(set_hat[i].clone());
+        f.push(set[i].clone());
+        z_f.push(z[i].clone());
     }
 
-    let z = set.clone();
-
-    let mut set_hat = set.clone();
-    let mut u_hat = u.clone();
-
-    for i in 0..set_hat.len() {
-        set_hat[i] = set_hat[i].clone() * BigInt::from(2).pow(14) + z[i].clone();
-    }
-
-    for i in 0..u_hat.len() {
-        u_hat[i] = u_hat[i].clone() * BigInt::from(2).pow(14) + z[i].clone();
-    }
+    // lookup
+    let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
 
     let arithm_circuit = ArithmCircuit::<E::ScalarField>::mock(l_size);
     let bound_circuit = BoundCircuit::<E::ScalarField>::mock(l_size);
-
-    let ctt_circuit = CTTCircuit::<E::ScalarField>::mock(set.len(), l_size);
-    let wt_circuit = WTCircuit::<E::ScalarField>::mock(l_size, l_size, z.len());
+    let ctt_circuit = CTTCircuit::<E::ScalarField>::mock(l_size, l_size);
+    let wt_circuit = WTCircuit::<E::ScalarField>::mock(l_size, l_size, l_size);
 
     let (pp, tree) =
         HarisaPlus::<E, Harisa<E, LinkSnark<E>>, LinkSnark<E>>::generate_lookup_parameters(
@@ -61,52 +65,55 @@ where
         )
         .unwrap();
 
-    // let (cm_u, o_u) = Utils::<E>::pedersen(pp.m_pp.g.clone(), u.clone(), &mut rng).unwrap();
-
     let accum = tree[0].clone() * set[0].clone();
 
-    let mut circuit_set: Vec<E::ScalarField> = Vec::new();
     let mut circuit_set_hat: Vec<E::ScalarField> = Vec::new();
-    let mut circuit_u: Vec<E::ScalarField> = Vec::new();
-    let mut circuit_u_hat: Vec<E::ScalarField> = Vec::new();
+    let mut circuit_set: Vec<E::ScalarField> = Vec::new();
     let mut circuit_z: Vec<E::ScalarField> = Vec::new();
+    let mut circuit_f_hat: Vec<E::ScalarField> = Vec::new();
+    let mut circuit_f: Vec<E::ScalarField> = Vec::new();
+    let mut circuit_z_f: Vec<E::ScalarField> = Vec::new();
 
-    for s_i in set.clone() {
-        circuit_set.push(bigint_to_fr(s_i));
-    }
-
-    for s_hat_i in set_hat.clone() {
+    for s_hat_i in set.clone() {
         circuit_set_hat.push(bigint_to_fr(s_hat_i));
     }
 
-    for u_i in u.clone() {
-        circuit_u.push(bigint_to_fr(u_i));
-    }
-
-    for u_hat_i in u_hat.clone() {
-        circuit_u_hat.push(bigint_to_fr(u_hat_i));
+    for s_i in set.clone() {
+        circuit_set.push(bigint_to_fr(s_i));
     }
 
     for z_i in z.clone() {
         circuit_z.push(bigint_to_fr(z_i));
     }
 
+    for f_hat_i in f_hat.clone() {
+        circuit_f_hat.push(bigint_to_fr(f_hat_i));
+    }
+
+    for i in 0..f_hat.clone().len() {
+        circuit_f.push(circuit_set[i]);
+    }
+
+    for i in 0..f_hat.clone().len() {
+        circuit_z_f.push(circuit_z[i]);
+    }
+
     let ctt_circuit =
-        CTTCircuit::<E::ScalarField>::new(circuit_set_hat.clone(), circuit_u_hat.clone());
+        CTTCircuit::<E::ScalarField>::new(circuit_f_hat.clone(), circuit_f_hat.clone());
 
     let wt_circuit = WTCircuit::<E::ScalarField>::new(
-        circuit_u_hat.clone(),
-        circuit_u.clone(),
-        circuit_z.clone(),
+        circuit_f_hat.clone(),
+        circuit_f.clone(),
+        circuit_z_f.clone(),
     );
 
     let proof = HarisaPlus::<E, Harisa<E, LinkSnark<E>>, LinkSnark<E>>::generate_lookup_proof(
         pp.clone(),
         accum.clone(),
         tree,
-        u_hat.clone(),
-        u.clone(),
-        z.clone(),
+        f_hat,
+        f,
+        z_f,
         ctt_circuit,
         wt_circuit,
         &mut rng,
@@ -115,26 +122,19 @@ where
 
     assert!(
         HarisaPlus::<E, Harisa<E, LinkSnark<E>>, LinkSnark<E>>::verify_lookup(
-            pp, accum, cm_u, cm_u, cm_u, proof
+            pp,
+            accum,
+            proof.cm_f_hat,
+            proof.cm_f,
+            proof.cm_z,
+            proof
         )
         .unwrap(),
         "[Harisa+] Verify Failed"
-    ); // proof 쪽에서 cm들을 계산해서 가져온다로 생각
+    );
 }
 
-const SET_SIZE: usize = 32;
-
-fn set(n: usize) -> Vec<BigInt> {
-    use crate::harisa::constants::ODD_PRIME;
-
-    let mut res = Vec::new();
-    for i in 0..n {
-        // res.push(E::ScalarField::from(ODD_PRIME[i]));
-        res.push(BigInt::from(ODD_PRIME[i]));
-    }
-
-    res
-}
+const SET_SIZE: usize = 16;
 
 #[test]
 fn test_lookup_bn254() {
@@ -142,8 +142,9 @@ fn test_lookup_bn254() {
 
     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
 
-    let set = set(256);
-
     test_lookup::<Bn254>(SET_SIZE);
-    // test_lookup::<Bn254>(set, 10);
 }
+
+// 현재 문제: linker => verification X / PoKE => Does not match
+
+// z: [627, 637, 643, 645, 649, 657, 663, 669, 693, 709, 715, 723, 733, 739, 753, 775, 783, 799, 805, 807, 819, 823, 825, 847, 855, 873, 907, 909, 915, 933, 937, 943, 949, 957, 967, 975, 993, 999, 1003, 1005, 1009, 1017, 1033, 1035, 1047, 1059, 1065, 1083, 1087, 1093, 1099, 1105, 1107, 1113, 1125, 1135, 1155, 1167, 1185, 1189, 1195, 1197, 1213, 1215, 1225, 1239, 1243, 1273, 1275, 1285, 1297, 1299, 1323, 1329, 1345, 1353, 1363, 1365, 1377, 1399, 1405, 1407, 1423, 1443, 1453, 1455, 1467, 1479, 1497, 1507, 1519, 1525, 1527, 1537, 1539, 1545, 1555, 1573, 1575, 1587]

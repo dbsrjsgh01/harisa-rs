@@ -81,7 +81,7 @@ pub fn generate_cp_ctt_relation<E: Pairing>(
     // cm_a
     crs.insert_row_slice(1, 1, &vec![ck[0]]);
     for i in 0..msg_len {
-        crs.insert_row_slice(0, i + 3 + msg_len, &vec![ck[i + 1]]);
+        crs.insert_row_slice(1, i + 3 + msg_len, &vec![ck[i + 1]]);
     }
 
     // snark_ck
@@ -109,13 +109,13 @@ pub fn generate_cp_wt_relation<E: Pairing>(
     // cm_a
     crs.insert_row_slice(1, 1, &vec![ck[0]]);
     for i in 0..msg_len {
-        crs.insert_row_slice(0, i + 4 + msg_len, &vec![ck[i + 1]]);
+        crs.insert_row_slice(1, i + 4 + msg_len, &vec![ck[i + 1]]);
     }
 
     // cm_z
     crs.insert_row_slice(2, 2, &vec![ck[0]]);
     for i in 0..msg_len {
-        crs.insert_row_slice(0, i + 4 + 2 * msg_len, &vec![ck[i + 1]]);
+        crs.insert_row_slice(2, i + 4 + 2 * msg_len, &vec![ck[i + 1]]);
     }
 
     // snark_ck

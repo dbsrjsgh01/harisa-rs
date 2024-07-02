@@ -42,7 +42,7 @@ pub trait Membership<E: Pairing, LNK: Linker<E>> {
         arithm_circuit: Arithm,
         bound_circuit: Bound,
         rng: &mut R,
-    ) -> Result<(Self::Parameters, Self::Table), Error>;
+    ) -> Result<(Self::Parameters, Self::Table, Vec<E::G1Affine>), Error>;
 
     fn prove<R: RngCore + CryptoRng + Rng>(
         pp: Self::Parameters,

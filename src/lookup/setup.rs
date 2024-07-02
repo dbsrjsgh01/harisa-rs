@@ -67,19 +67,13 @@ where
 
         let lookup_generation = start_timer!(|| "HARiSA+::Generator");
 
-        let (m_pp, tree) = M::setup(set, arithm_circuit, bound_circuit, rng).unwrap();
-
-        let mut ck = Vec::new();
-
-        for _ in 0..num + 1 {
-            ck.push(E::G1Affine::rand(rng));
-        }
+        let (m_pp, tree, ck) = M::setup(set, arithm_circuit, bound_circuit, rng).unwrap();
 
         let ctt_generation = start_timer!(|| "ctt::generator");
         let (ctt_ek, ctt_vk) = Self::generate_cc_snark_parameters(ctt_circuit, rng).unwrap();
 
         let (ctt_lnk_pp, ctt_lnk_ek, ctt_lnk_vk) = Self::generate_link_parameters(
-            ctt_ek.ck.len() - 1,
+            (ctt_ek.ck.len() - 1) / 2,
             ck.clone(),
             ctt_ek.ck.as_slice().to_vec(),
             "ctt",
@@ -92,7 +86,7 @@ where
         let (wt_ek, wt_vk) = Self::generate_cc_snark_parameters(wt_circuit, rng).unwrap();
 
         let (wt_lnk_pp, wt_lnk_ek, wt_lnk_vk) = Self::generate_link_parameters(
-            wt_ek.ck.len() - 1,
+            (wt_ek.ck.len() - 1) / 3,
             ck.clone(),
             wt_ek.ck.as_slice().to_vec(),
             "wt",

@@ -5,7 +5,10 @@ use crate::{
         arithm::ArithmCircuit, bound::BoundCircuit, harisa::Harisa, type_conversion::bigint_to_fr,
     },
     linker::snark::LinkSnark,
-    lookup::{copy_this_or_that::CTTCircuit, lookup::HarisaPlus, well_transformed::WTCircuit},
+    lookup::{
+        constants::PRIME, copy_this_or_that::CTTCircuit, lookup::HarisaPlus,
+        well_transformed::WTCircuit,
+    },
 };
 
 use ark_ec::pairing::Pairing;
@@ -102,11 +105,10 @@ where
         accum.clone(),
         tree,
         u_hat.clone(),
+        u.clone(),
         z.clone(),
         ctt_circuit,
         wt_circuit,
-        cm_u,
-        o_u,
         &mut rng,
     )
     .unwrap();
@@ -117,7 +119,7 @@ where
         )
         .unwrap(),
         "[Harisa+] Verify Failed"
-    );
+    ); // proof 쪽에서 cm들을 계산해서 가져온다로 생각
 }
 
 const SET_SIZE: usize = 32;

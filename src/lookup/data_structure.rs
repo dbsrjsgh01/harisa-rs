@@ -47,8 +47,16 @@ impl<E: Pairing, M: Membership<E, LNK>, LNK: Linker<E>> Clone for LookupPP<E, M,
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct LookupProof<E: Pairing, M: Membership<E, LNK>, LNK: Linker<E>> {
     pub m_prf: M::Proof,
+
     pub ctt_prf: Proof<E>,
     pub ctt_lnk_prf: LNK::Proof,
+    pub ctt_lnk_cm_aux: LNK::CM,
+
     pub wt_prf: Proof<E>,
     pub wt_lnk_prf: LNK::Proof,
+    pub wt_lnk_cm_aux: LNK::CM,
+
+    pub cm_f_hat: E::G1Affine,
+    pub cm_f: E::G1Affine,
+    pub cm_z: E::G1Affine,
 }

@@ -39,15 +39,13 @@ where
     let bound_circuit = BoundCircuit::<E::ScalarField>::mock(l_size);
 
     // setup
-    let (pp, tree) = Harisa::<E, LNK>::generate_harisa_parameters(
+    let (pp, tree, _) = Harisa::<E, LNK>::generate_harisa_parameters(
         set.clone(),
         arithm_circuit,
         bound_circuit,
         &mut rng,
     )
     .unwrap();
-
-    // let (cm_u, o_u) = Utils::<E>::pedersen(pp.g.clone(), u.clone(), &mut rng).unwrap();
 
     let accum = tree[0].clone().modpow(&set[0].clone(), &pp.mod_n.clone());
 
@@ -69,7 +67,7 @@ where
         cm_u = (cm_u + *g_i * u_i).into();
     }
 
-    // prove: Circuit을 prove 내에 집어넣는 방법
+    // prove
     let proof = Harisa::<E, LNK>::generate_harisa_opt_proof(
         pp.clone(),
         tree,
@@ -83,19 +81,16 @@ where
 
     // verify
     assert!(
-        // Harisa::<E>::harisa_verify(pp, accum, cm_u, proof).unwrap(),
         Harisa::<E, LNK>::harisa_verify(pp, accum, cm_u.clone(), proof).unwrap(),
         "[Harisa] Verify Failed"
     );
 }
 
-// fn set<E: Pairing>(n: usize) -> Vec<E::ScalarField> {
 fn set(n: usize) -> Vec<BigInt> {
     use crate::harisa::constants::ODD_PRIME;
 
     let mut res = Vec::new();
     for i in 0..n {
-        // res.push(E::ScalarField::from(ODD_PRIME[i]));
         res.push(BigInt::from(ODD_PRIME[i]));
     }
 

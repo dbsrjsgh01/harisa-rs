@@ -37,11 +37,11 @@ impl<E: Pairing, LNK: Linker<E>> Membership<E, LNK> for Harisa<E, LNK> {
         arithm_circuit: Arithm,
         bound_circuit: Bound,
         rng: &mut R,
-    ) -> Result<(Self::Parameters, Self::Table), Error> {
-        let (pp, table) =
+    ) -> Result<(Self::Parameters, Self::Table, Vec<E::G1Affine>), Error> {
+        let (pp, table, ck) =
             Self::generate_harisa_parameters(set, arithm_circuit, bound_circuit, rng).unwrap();
 
-        Ok((pp, table))
+        Ok((pp, table, ck))
     }
 
     fn prove<R: RngCore + CryptoRng + Rng>(

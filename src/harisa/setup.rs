@@ -62,7 +62,7 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
         arithm_circuit: Arithm,
         bound_circuit: Bound,
         rng: &mut R,
-    ) -> Result<(HarisaPP<E, LNK>, Vec<BigInt>), SynthesisError> {
+    ) -> Result<(HarisaPP<E, LNK>, Vec<BigInt>, Vec<E::G1Affine>), SynthesisError> {
         let num = set.len();
         let harisa_generation = start_timer!(|| "HARiSA::Generator");
 
@@ -121,9 +121,10 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
                 bound_lnk_vk,
                 g: g.clone(),
                 mod_n: mod_n.clone(),
-                ck,
+                ck: ck.clone(),
             },
             table,
+            ck,
         ))
     }
 }

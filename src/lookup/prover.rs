@@ -3,7 +3,7 @@ use std::str::FromStr;
 use crate::{
     cc_snark::{CcGroth16, Proof, ProvingKey, R1CSToQAP},
     harisa::{harisa::Harisa, type_conversion::bigint_to_fr, Membership},
-    linker::Linker,
+    linker::{matrix::inner_product, Linker},
     lookup::{
         data_structure::{LookupPP, LookupProof},
         lookup::HarisaPlus,
@@ -80,57 +80,136 @@ where
     where
         <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
     {
-        let mut u_scalar: Vec<E::ScalarField> = Vec::new();
-        for u_i in elem.clone() {
-            u_scalar.push(bigint_to_fr(u_i));
+        let mut f_hat_scalar: Vec<E::ScalarField> = Vec::new();
+        for u_i in lookup.clone() {
+            f_hat_scalar.push(bigint_to_fr(u_i));
         }
 
-        let o_u = E::ScalarField::rand(rng);
+        let o_f_hat = E::ScalarField::rand(rng);
 
-        let mut cm_u = (pp.ck[0].clone() * o_u).into();
+        let mut cm_f_hat = (pp.ck[0].clone() * o_f_hat).into();
 
         for (g_i, u_i) in pp
             .ck
             .clone()
             .iter()
             .skip(1)
-            .zip(u_scalar.clone().into_iter())
+            .zip(f_hat_scalar.clone().into_iter())
         {
-            cm_u = (cm_u + *g_i * u_i).into();
+            cm_f_hat = (cm_f_hat + *g_i * u_i).into();
         }
 
-        let m_prf = M::prove(pp.m_pp, tree, accum, cm_u, lookup, o_u, rng).unwrap();
+        let mut f_scalar: Vec<E::ScalarField> = Vec::new();
+        for f_i in elem.clone() {
+            f_scalar.push(bigint_to_fr(f_i));
+        }
+
+        let o_f = E::ScalarField::rand(rng);
+
+        let mut cm_f = (pp.ck[0].clone() * o_f).into();
+
+        for (g_i, u_i) in pp
+            .ck
+            .clone()
+            .iter()
+            .skip(1)
+            .zip(f_scalar.clone().into_iter())
+        {
+            cm_f = (cm_f + *g_i * u_i).into();
+        }
+
+        let mut z_scalar: Vec<E::ScalarField> = Vec::new();
+        for u_i in rand.clone() {
+            z_scalar.push(bigint_to_fr(u_i));
+        }
+
+        let o_z = E::ScalarField::rand(rng);
+
+        let mut cm_z = (pp.ck[0].clone() * o_z).into();
+
+        for (g_i, u_i) in pp
+            .ck
+            .clone()
+            .iter()
+            .skip(1)
+            .zip(z_scalar.clone().into_iter())
+        {
+            cm_z = (cm_z + *g_i * u_i).into();
+        }
+
+        let m_prf = M::prove(pp.m_pp, tree, accum, cm_f_hat, lookup, o_f_hat, rng).unwrap();
+
+        let ctt_prove = start_timer!(|| "cpctt::prove");
 
         let ctt_prf = Self::generate_cc_proof(&pp.ctt_ek, ctt_circuit, rng).unwrap();
 
         let (ctt_lnk_prf, ctt_lnk_cm_aux) = Self::generate_link_proof(
             pp.ctt_lnk_pp.clone(),
             pp.ctt_lnk_ek.clone(),
-            vec![o_u],
-            u_scalar.clone(),
+            vec![o_f_hat, o_f_hat],
+            [f_hat_scalar.clone(), f_hat_scalar.clone()].concat(),
             vec![ctt_prf.open],
             rng,
         )
         .unwrap();
+
+        end_timer!(ctt_prove);
+
+        let test_cm = inner_product::<E>(
+            [vec![o_f_hat], f_hat_scalar.clone()].concat().as_slice(),
+            pp.ck.clone().drain(..17).as_slice(),
+        );
+        let test_cm_f = inner_product::<E>(
+            [vec![o_f], f_scalar.clone()].concat().as_slice(),
+            pp.ck.clone().drain(..17).as_slice(),
+        );
+        let test_cm_z = inner_product::<E>(
+            [vec![o_z], z_scalar.clone()].concat().as_slice(),
+            pp.ck.clone().drain(..17).as_slice(),
+        );
+        let test_snark_cm = inner_product::<E>(
+            [
+                vec![ctt_prf.open],
+                f_hat_scalar.clone(),
+                f_hat_scalar.clone(),
+            ]
+            .concat()
+            .as_slice(),
+            pp.ctt_ek.ck.as_slice(),
+        );
+
+        assert_eq!(test_cm, cm_f_hat, "Commitment");
+        assert_eq!(test_cm_f, cm_f, "Commitment");
+        assert_eq!(test_cm_z, cm_z, "Commitment");
+        assert_eq!(ctt_prf.cm, test_snark_cm, "Commitment");
+
+        let wt_prove = start_timer!(|| "cpwt::prove");
 
         let wt_prf = Self::generate_cc_proof(&pp.wt_ek, wt_circuit, rng).unwrap();
 
         let (wt_lnk_prf, wt_lnk_cm_aux) = Self::generate_link_proof(
             pp.wt_lnk_pp.clone(),
             pp.wt_lnk_ek.clone(),
-            vec![o_u],
-            u_scalar,
+            vec![o_f_hat, o_f, o_z],
+            [f_hat_scalar, f_scalar, z_scalar].concat(),
             vec![wt_prf.open],
             rng,
         )
         .unwrap();
 
+        end_timer!(wt_prove);
+
         Ok(LookupProof {
             m_prf,
             ctt_prf,
             ctt_lnk_prf,
+            ctt_lnk_cm_aux,
             wt_prf,
             wt_lnk_prf,
+            wt_lnk_cm_aux,
+            cm_f_hat,
+            cm_f,
+            cm_z,
         })
     }
 }

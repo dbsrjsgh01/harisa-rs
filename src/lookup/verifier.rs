@@ -35,22 +35,47 @@ where
     {
         let mem_verify = start_timer!(|| "mem::verify");
         let mem_result = M::verify(pp.m_pp, accum, cm_u, proof.m_prf).unwrap();
-        // let mem_result = M::verify(pp.m_pp, accum, proof.m_prf).unwrap();
         end_timer!(mem_verify);
+
+        let ctt_instance = LNK::generate_instance(
+            vec![proof.cm_f_hat, proof.cm_f_hat],
+            proof.ctt_prf.cm,
+            proof.ctt_lnk_cm_aux,
+        );
 
         let ctt_pvk = prepare_verifying_key(&pp.ctt_vk.clone());
         let ctt_verify = start_timer!(|| "cpctt::verify");
         let ctt_result = CcGroth16::<E, QAP>::verify_proof(&ctt_pvk, &proof.ctt_prf, &[]).unwrap();
+        let ctt_lnk_result = LNK::verify(
+            &pp.ctt_lnk_pp,
+            &pp.ctt_lnk_vk,
+            &ctt_instance,
+            &proof.ctt_lnk_prf,
+        );
         end_timer!(ctt_verify);
 
+        let wt_instance = LNK::generate_instance(
+            vec![proof.cm_f_hat, proof.cm_f, proof.cm_z],
+            proof.wt_prf.cm,
+            proof.wt_lnk_cm_aux,
+        );
+
         let wt_pvk = prepare_verifying_key(&pp.wt_vk.clone());
-        let wt_verify = start_timer!(|| "cpbound::verify");
+        let wt_verify = start_timer!(|| "cpwt::verify");
         let wt_result = CcGroth16::<E, QAP>::verify_proof(&wt_pvk, &proof.wt_prf, &[]).unwrap();
+        let wt_lnk_result = LNK::verify(
+            &pp.wt_lnk_pp,
+            &pp.wt_lnk_vk,
+            &wt_instance,
+            &proof.wt_lnk_prf,
+        );
         end_timer!(wt_verify);
 
         assert_eq!(mem_result, true, "[HARiSA] Membership Check Failed");
         assert_eq!(ctt_result, true, "[Copy this or that] Verification Failed");
+        assert_eq!(ctt_lnk_result, true, "[Copy this or that] Linker Failed");
         assert_eq!(wt_result, true, "[Well Transformed] Verification Failed");
+        assert_eq!(wt_lnk_result, true, "[Well Transformed] Linker Failed");
 
         Ok(true)
     }

@@ -1,9 +1,11 @@
+pub mod constants;
 pub mod data_structure;
 pub mod lookup;
 pub mod prover;
 pub mod setup;
 pub mod verifier;
 
+mod bench;
 // mod test;
 
 pub mod copy_this_or_that;

@@ -163,6 +163,9 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
         let circuit_s = bigint_to_fr(s);
         let circuit_r = bigint_to_fr(r_rand);
 
+        let small_prime = E::ScalarField::from(ODD_PRIME[255]);
+
+        // arithm => prf2
         let arithm_circuit = ArithmCircuit::<E::ScalarField>::new(
             circuit_h,
             circuit_l,
@@ -171,10 +174,7 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
             circuit_s,
             circuit_r,
         );
-        let bound_circuit =
-            BoundCircuit::<E::ScalarField>::new(E::ScalarField::one(), circuit_u.clone());
 
-        // arithm => prf2
         let arithm_prf =
             Self::generate_cc_proof(&pp.arithm_ek.clone(), arithm_circuit, rng).unwrap();
 
@@ -213,6 +213,7 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
         .unwrap();
 
         // bound => prf3
+        let bound_circuit = BoundCircuit::<E::ScalarField>::new(small_prime, circuit_u.clone());
         let bound_prf = Self::generate_cc_proof(&pp.bound_ek.clone(), bound_circuit, rng).unwrap();
 
         let bound_witness = [vec![bound_prf.open], circuit_u.clone()].concat();

@@ -155,34 +155,6 @@ where
 
         end_timer!(ctt_prove);
 
-        let test_cm = inner_product::<E>(
-            [vec![o_f_hat], f_hat_scalar.clone()].concat().as_slice(),
-            pp.ck.clone().drain(..17).as_slice(),
-        );
-        let test_cm_f = inner_product::<E>(
-            [vec![o_f], f_scalar.clone()].concat().as_slice(),
-            pp.ck.clone().drain(..17).as_slice(),
-        );
-        let test_cm_z = inner_product::<E>(
-            [vec![o_z], z_scalar.clone()].concat().as_slice(),
-            pp.ck.clone().drain(..17).as_slice(),
-        );
-        let test_snark_cm = inner_product::<E>(
-            [
-                vec![ctt_prf.open],
-                f_hat_scalar.clone(),
-                f_hat_scalar.clone(),
-            ]
-            .concat()
-            .as_slice(),
-            pp.ctt_ek.ck.as_slice(),
-        );
-
-        assert_eq!(test_cm, cm_f_hat, "Commitment");
-        assert_eq!(test_cm_f, cm_f, "Commitment");
-        assert_eq!(test_cm_z, cm_z, "Commitment");
-        assert_eq!(ctt_prf.cm, test_snark_cm, "Commitment");
-
         let wt_prove = start_timer!(|| "cpwt::prove");
 
         let wt_prf = Self::generate_cc_proof(&pp.wt_ek, wt_circuit, rng).unwrap();

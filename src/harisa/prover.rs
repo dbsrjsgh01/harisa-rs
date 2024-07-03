@@ -83,6 +83,7 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
     where
         <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
     {
+        let harisa_prover = start_timer!(|| "Harisa::prove");
         // pstar
         let mut p_star = BigInt::one();
 
@@ -146,11 +147,15 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
         let large_b =
             (accum_hat.modpow(&h.clone(), &pp.mod_n.clone()) * r.clone()) % pp.mod_n.clone();
 
+        let poke_prove = start_timer!(|| "PoKE::prove");
+
         let l = hash_to_prime(w_hat.clone(), large_b.clone(), &constants);
 
         let quot = k.clone() / l.clone();
         let rem = k.clone() % l.clone();
         let q = w_hat.clone().modpow(&quot.clone(), &pp.mod_n.clone());
+
+        end_timer!(poke_prove);
 
         let mut circuit_u = Vec::new();
 
@@ -176,6 +181,7 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
             circuit_r,
         );
 
+        let arithm_prove = start_timer!(|| "cparithm::prove");
         let arithm_prf =
             Self::generate_cc_proof(&pp.arithm_ek.clone(), arithm_circuit, rng).unwrap();
 
@@ -212,8 +218,10 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
             rng,
         )
         .unwrap();
+        end_timer!(arithm_prove);
 
         // bound => prf3
+        let bound_prove = start_timer!(|| "cpbound::prove");
         let bound_circuit =
             // BoundCircuit::<E::ScalarField>::new(small_prime, circuit_u.clone());
             BoundCircuit::<E::ScalarField>::new(E::ScalarField::one(), circuit_u.clone());
@@ -236,6 +244,8 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
             rng,
         )
         .unwrap();
+        end_timer!(bound_prove);
+        end_timer!(harisa_prover);
 
         Ok(HarisaProof {
             cm_u,

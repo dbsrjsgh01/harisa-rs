@@ -29,6 +29,7 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
     where
         <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
     {
+        let harisa_verifier = start_timer!(|| "Harisa::verify");
         // pstar
         let mut p_star = BigInt::one();
 
@@ -48,6 +49,7 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
         h = hash_to_prime(h, proof.r.clone(), &constants);
 
         // 1. acc_hat = acc^{h * prod_pi} + R
+        let poke_verify = start_timer!(|| "PoKE::verify");
         let acc_hat = (accum_hat.modpow(&h, &pp.mod_n.clone()) * proof.r) % pp.mod_n.clone();
 
         let l = hash_to_prime(proof.w_hat.clone(), acc_hat.clone(), &constants);
@@ -63,6 +65,7 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
             acc_hat,
             "[PoKE] Verification Failed"
         );
+        end_timer!(poke_verify);
 
         let arithm_instance = LNK::generate_instance(
             vec![proof.cm_u, proof.cm_sr],
@@ -96,6 +99,7 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
             &proof.bound_lnk_prf,
         );
         end_timer!(bound_verify);
+        end_timer!(harisa_verifier);
 
         assert_eq!(arithm_result, true, "[Arithm] Verification Failed");
         assert_eq!(arithm_link_result, true, "[Arithm] Linker Failed");

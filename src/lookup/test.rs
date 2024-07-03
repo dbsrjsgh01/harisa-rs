@@ -150,3 +150,4 @@ fn test_lookup_bn254() {
 
     test_lookup::<Bn254>(SET_SIZE);
 }
+// cargo test -r --package harisa-rs --features "parallel print-trace" --lib -- lookup::test::test_lookup_bn254 --exact --show-output

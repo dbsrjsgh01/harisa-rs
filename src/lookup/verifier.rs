@@ -33,6 +33,7 @@ where
     where
         <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
     {
+        let lookup_verify = start_timer!(|| "Harisa+::verify");
         let mem_verify = start_timer!(|| "mem::verify");
         let mem_result = M::verify(pp.m_pp, accum, cm_u, proof.m_prf).unwrap();
         end_timer!(mem_verify);
@@ -71,6 +72,7 @@ where
             &proof.wt_lnk_prf,
         );
         end_timer!(wt_verify);
+        end_timer!(lookup_verify);
 
         assert_eq!(mem_result, true, "[HARiSA] Membership Check Failed");
         assert_eq!(ctt_result, true, "[Copy this or that] Verification Failed");

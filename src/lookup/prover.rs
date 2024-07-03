@@ -155,6 +155,7 @@ where
             cm_f_prime = (cm_f_prime + *g_i * u_i).into();
         }
 
+        let lookup_prover = start_timer!(|| "Harisa+::prove");
         // let m_prf = M::prove(pp.m_pp, tree, accum, cm_f_hat, lookup, o_f_hat, rng).unwrap();
         let m_prf = M::prove(
             pp.m_pp,
@@ -207,6 +208,7 @@ where
         .unwrap();
 
         end_timer!(wt_prove);
+        end_timer!(lookup_prover);
 
         Ok(LookupProof {
             m_prf,

@@ -137,17 +137,54 @@ where
             cm_z = (cm_z + *g_i * u_i).into();
         }
 
-        let m_prf = M::prove(pp.m_pp, tree, accum, cm_f_hat, lookup, o_f_hat, rng).unwrap();
+        let harisa_elem = [lookup, rand].concat();
+
+        let harisa_scalar = [f_hat_scalar.clone(), z_scalar.clone()].concat();
+
+        let o_f_prime = E::ScalarField::rand(rng);
+
+        let mut cm_f_prime = (pp.ck[0].clone() * o_f_prime).into();
+
+        for (g_i, u_i) in pp
+            .ck
+            .clone()
+            .iter()
+            .skip(1)
+            .zip(harisa_scalar.clone().into_iter())
+        {
+            cm_f_prime = (cm_f_prime + *g_i * u_i).into();
+        }
+
+        // let m_prf = M::prove(pp.m_pp, tree, accum, cm_f_hat, lookup, o_f_hat, rng).unwrap();
+        let m_prf = M::prove(
+            pp.m_pp,
+            tree,
+            accum,
+            cm_f_prime,
+            harisa_elem,
+            o_f_prime,
+            rng,
+        )
+        .unwrap();
 
         let ctt_prove = start_timer!(|| "cpctt::prove");
 
         let ctt_prf = Self::generate_cc_proof(&pp.ctt_ek, ctt_circuit, rng).unwrap();
 
+        // let (ctt_lnk_prf, ctt_lnk_cm_aux) = Self::generate_link_proof(
+        //     pp.ctt_lnk_pp.clone(),
+        //     pp.ctt_lnk_ek.clone(),
+        //     vec![o_f_hat, o_f_hat],
+        //     [f_hat_scalar.clone(), f_hat_scalar.clone()].concat(),
+        //     vec![ctt_prf.open],
+        //     rng,
+        // )
+        // .unwrap();
         let (ctt_lnk_prf, ctt_lnk_cm_aux) = Self::generate_link_proof(
             pp.ctt_lnk_pp.clone(),
             pp.ctt_lnk_ek.clone(),
-            vec![o_f_hat, o_f_hat],
-            [f_hat_scalar.clone(), f_hat_scalar.clone()].concat(),
+            vec![o_f_prime, o_f_prime],
+            [harisa_scalar.clone(), harisa_scalar.clone()].concat(),
             vec![ctt_prf.open],
             rng,
         )
@@ -179,6 +216,7 @@ where
             wt_prf,
             wt_lnk_prf,
             wt_lnk_cm_aux,
+            cm_f_prime,
             cm_f_hat,
             cm_f,
             cm_z,

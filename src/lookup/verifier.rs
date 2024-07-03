@@ -38,7 +38,8 @@ where
         end_timer!(mem_verify);
 
         let ctt_instance = LNK::generate_instance(
-            vec![proof.cm_f_hat, proof.cm_f_hat],
+            // vec![proof.cm_f_hat, proof.cm_f_hat],
+            vec![proof.cm_f_prime, proof.cm_f_prime],
             proof.ctt_prf.cm,
             proof.ctt_lnk_cm_aux,
         );

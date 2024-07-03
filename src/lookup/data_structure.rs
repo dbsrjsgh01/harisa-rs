@@ -56,6 +56,7 @@ pub struct LookupProof<E: Pairing, M: Membership<E, LNK>, LNK: Linker<E>> {
     pub wt_lnk_prf: LNK::Proof,
     pub wt_lnk_cm_aux: LNK::CM,
 
+    pub cm_f_prime: E::G1Affine,
     pub cm_f_hat: E::G1Affine,
     pub cm_f: E::G1Affine,
     pub cm_z: E::G1Affine,

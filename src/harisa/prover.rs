@@ -94,6 +94,7 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
             p_star *= p_i;
         }
 
+        // accum_hat
         let accum_hat = accum.clone().modpow(&p_star, &pp.mod_n.clone());
 
         // ustar
@@ -213,7 +214,9 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
         .unwrap();
 
         // bound => prf3
-        let bound_circuit = BoundCircuit::<E::ScalarField>::new(small_prime, circuit_u.clone());
+        let bound_circuit =
+            // BoundCircuit::<E::ScalarField>::new(small_prime, circuit_u.clone());
+            BoundCircuit::<E::ScalarField>::new(E::ScalarField::one(), circuit_u.clone());
         let bound_prf = Self::generate_cc_proof(&pp.bound_ek.clone(), bound_circuit, rng).unwrap();
 
         let bound_witness = [vec![bound_prf.open], circuit_u.clone()].concat();

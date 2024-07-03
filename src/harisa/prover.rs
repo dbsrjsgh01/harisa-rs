@@ -136,7 +136,7 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
         // hash h
         let constants = round_keys_contants_to_vec::<E::ScalarField>(&MIMC_7_91_BN254_ROUND_KEYS);
 
-        let mut h = hash_to_prime(accum, w_hat.clone(), &constants);
+        let mut h = hash_to_prime(accum.clone(), w_hat.clone(), &constants);
         h = hash_to_prime(h, r.clone(), &constants);
 
         // calculate k
@@ -274,11 +274,6 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
         for i in 0..u_len {
             w.push(tree[i].clone());
         }
-
-        assert_eq!(
-            w[0].clone().modpow(&u[0].clone(), &pp.mod_n.clone()),
-            w[1].clone().modpow(&u[1].clone(), &pp.mod_n.clone()),
-        );
 
         let mut u_vec = u.clone();
 

@@ -54,9 +54,14 @@ where
     let ctt_circuit = CTTCircuit::<E::ScalarField>::mock(2 * l_size, 2 * l_size);
     let wt_circuit = WTCircuit::<E::ScalarField>::mock(l_size, l_size, l_size);
 
+    let mut binding = set_hat.clone();
+    let mut sorted_set: Vec<BigInt> = binding.drain(..l_size).collect();
+
+    sorted_set = [sorted_set, z.clone(), binding].concat();
+
     let (pp, tree) =
         HarisaPlus::<E, Harisa<E, LinkSnark<E>>, LinkSnark<E>>::generate_lookup_parameters(
-            set_hat.clone(),
+            sorted_set.clone(),
             ctt_circuit,
             wt_circuit,
             arithm_circuit,
@@ -65,7 +70,7 @@ where
         )
         .unwrap();
 
-    let accum = tree[0].clone().modpow(&set_hat[0].clone(), &pp.m_pp.mod_n);
+    let accum = tree[0].clone().modpow(&sorted_set[0], &pp.m_pp.mod_n);
 
     let mut circuit_set_hat: Vec<E::ScalarField> = Vec::new();
     let mut circuit_set: Vec<E::ScalarField> = Vec::new();
@@ -101,8 +106,6 @@ where
     let ctt_elem = [circuit_f_hat.clone(), circuit_z_f.clone()].concat();
 
     let ctt_circuit = CTTCircuit::<E::ScalarField>::new(ctt_elem.clone(), ctt_elem.clone());
-    // let ctt_circuit =
-    //     CTTCircuit::<E::ScalarField>::new(circuit_f_hat.clone(), circuit_f_hat.clone());
 
     let wt_circuit = WTCircuit::<E::ScalarField>::new(
         circuit_f_hat.clone(),

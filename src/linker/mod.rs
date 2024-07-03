@@ -1,9 +1,6 @@
-// cpSNARK = ccSNARK + cpLink
-// commitment가 linking되었는지 확인해야 가능
 pub mod matrix;
 pub mod relation_generator;
 pub mod snark;
-mod test;
 
 use ark_ec::{pairing::Pairing, AffineRepr};
 use ark_ff::{One, UniformRand};

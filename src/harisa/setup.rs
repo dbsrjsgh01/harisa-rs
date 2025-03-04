@@ -55,12 +55,10 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
 
     pub fn generate_harisa_parameters<
         Arithm: ConstraintSynthesizer<E::ScalarField>,
-        Bound: ConstraintSynthesizer<E::ScalarField>,
         R: RngCore + CryptoRng + Rng,
     >(
         set: Vec<BigInt>,
         arithm_circuit: Arithm,
-        bound_circuit: Bound,
         rng: &mut R,
     ) -> Result<(HarisaPP<E, LNK>, Vec<BigInt>, Vec<E::G1Affine>), SynthesisError> {
         let num = set.len();
@@ -86,19 +84,6 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
         .unwrap();
         end_timer!(arithm_generation);
 
-        let bound_generation = start_timer!(|| "bound::generator");
-        let (bound_ek, bound_vk) = Self::generate_cc_snark_parameters(bound_circuit, rng).unwrap();
-
-        let (bound_lnk_pp, bound_lnk_ek, bound_lnk_vk) = Self::generate_link_parameters(
-            bound_ek.ck.len() - 2,
-            ck.clone(),
-            bound_ek.ck.as_slice().to_vec(),
-            "bound",
-            rng,
-        )
-        .unwrap();
-        end_timer!(bound_generation);
-
         end_timer!(harisa_generation);
 
         let (g, mod_n) = rsa_setup();
@@ -114,11 +99,6 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
                 arithm_lnk_pp,
                 arithm_lnk_ek,
                 arithm_lnk_vk,
-                bound_ek: bound_ek.clone(),
-                bound_vk: bound_vk.clone(),
-                bound_lnk_pp,
-                bound_lnk_ek,
-                bound_lnk_vk,
                 g: g.clone(),
                 mod_n: mod_n.clone(),
                 ck: ck.clone(),

@@ -28,18 +28,12 @@ impl<E: Pairing, LNK: Linker<E>> Membership<E, LNK> for Harisa<E, LNK> {
     type Parameters = HarisaPP<E, LNK>;
     type Proof = HarisaProof<E, LNK>;
 
-    fn setup<
-        Arithm: ConstraintSynthesizer<E::ScalarField>,
-        Bound: ConstraintSynthesizer<E::ScalarField>,
-        R: RngCore + CryptoRng + Rng,
-    >(
+    fn setup<Arithm: ConstraintSynthesizer<E::ScalarField>, R: RngCore + CryptoRng + Rng>(
         set: Vec<BigInt>,
         arithm_circuit: Arithm,
-        bound_circuit: Bound,
         rng: &mut R,
     ) -> Result<(Self::Parameters, Self::Table, Vec<E::G1Affine>), Error> {
-        let (pp, table, ck) =
-            Self::generate_harisa_parameters(set, arithm_circuit, bound_circuit, rng).unwrap();
+        let (pp, table, ck) = Self::generate_harisa_parameters(set, arithm_circuit, rng).unwrap();
 
         Ok((pp, table, ck))
     }
@@ -52,11 +46,13 @@ impl<E: Pairing, LNK: Linker<E>> Membership<E, LNK> for Harisa<E, LNK> {
         u: Vec<BigInt>,
         o_u: E::ScalarField,
         rng: &mut R,
+        is_lookup: bool,
     ) -> Result<Self::Proof, Error>
     where
         <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
     {
-        let proof = Self::generate_harisa_opt_proof(pp, tree, accum, cm_u, u, o_u, rng).unwrap();
+        let proof =
+            Self::generate_harisa_opt_proof(pp, tree, accum, cm_u, u, o_u, rng, is_lookup).unwrap();
 
         Ok(proof)
     }

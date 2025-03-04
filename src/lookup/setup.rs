@@ -53,21 +53,19 @@ where
         CTT: ConstraintSynthesizer<E::ScalarField>,
         WT: ConstraintSynthesizer<E::ScalarField>,
         Arithm: ConstraintSynthesizer<E::ScalarField>,
-        Bound: ConstraintSynthesizer<E::ScalarField>,
         R: Rng + RngCore + CryptoRng,
     >(
         set: Vec<BigInt>,
         ctt_circuit: CTT,
         wt_circuit: WT,
         arithm_circuit: Arithm,
-        bound_circuit: Bound,
         rng: &mut R,
     ) -> Result<(LookupPP<E, M, LNK>, M::Table), SynthesisError> {
         let num = set.len();
 
         let lookup_generation = start_timer!(|| "HARiSA+::Generator");
 
-        let (m_pp, tree, ck) = M::setup(set, arithm_circuit, bound_circuit, rng).unwrap();
+        let (m_pp, tree, ck) = M::setup(set, arithm_circuit, rng).unwrap();
 
         let ctt_generation = start_timer!(|| "ctt::generator");
         let (ctt_ek, ctt_vk) = Self::generate_cc_snark_parameters(ctt_circuit, rng).unwrap();

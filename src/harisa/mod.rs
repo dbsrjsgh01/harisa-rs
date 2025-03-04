@@ -5,12 +5,13 @@ pub mod setup;
 pub mod verifier;
 
 pub mod arithm;
-pub mod bound;
 pub mod constants;
 pub mod harisa;
 
 pub mod hash_to_prime;
 pub mod type_conversion;
+
+pub mod di_hash;
 
 mod test;
 
@@ -33,14 +34,9 @@ pub trait Membership<E: Pairing, LNK: Linker<E>> {
     type Table;
     type Proof;
 
-    fn setup<
-        Arithm: ConstraintSynthesizer<E::ScalarField>,
-        Bound: ConstraintSynthesizer<E::ScalarField>,
-        R: RngCore + CryptoRng + Rng,
-    >(
+    fn setup<Arithm: ConstraintSynthesizer<E::ScalarField>, R: RngCore + CryptoRng + Rng>(
         set: Vec<BigInt>,
         arithm_circuit: Arithm,
-        bound_circuit: Bound,
         rng: &mut R,
     ) -> Result<(Self::Parameters, Self::Table, Vec<E::G1Affine>), Error>;
 
@@ -52,6 +48,7 @@ pub trait Membership<E: Pairing, LNK: Linker<E>> {
         u: Vec<BigInt>,
         o_u: E::ScalarField,
         rng: &mut R,
+        is_lookup: bool,
     ) -> Result<Self::Proof, Error>
     where
         <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug;

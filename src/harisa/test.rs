@@ -1,9 +1,7 @@
 use std::{ops::Bound, str::FromStr};
 
 use crate::{
-    harisa::{
-        arithm::ArithmCircuit, bound::BoundCircuit, harisa::Harisa, type_conversion::bigint_to_fr,
-    },
+    harisa::{arithm::ArithmCircuit, harisa::Harisa, type_conversion::bigint_to_fr},
     linker::Linker,
     ConstraintF,
 };
@@ -17,7 +15,7 @@ use ark_std::{
 };
 use num_bigint::BigInt;
 
-use super::{bound, prepare_verifying_key};
+use super::prepare_verifying_key;
 
 const SET_SIZE: usize = 32;
 
@@ -36,16 +34,11 @@ where
     }
 
     let arithm_circuit = ArithmCircuit::<E::ScalarField>::mock(l_size);
-    let bound_circuit = BoundCircuit::<E::ScalarField>::mock(l_size);
 
     // setup
-    let (pp, tree, _) = Harisa::<E, LNK>::generate_harisa_parameters(
-        set.clone(),
-        arithm_circuit,
-        bound_circuit,
-        &mut rng,
-    )
-    .unwrap();
+    let (pp, tree, _) =
+        Harisa::<E, LNK>::generate_harisa_parameters(set.clone(), arithm_circuit, &mut rng)
+            .unwrap();
 
     let accum = tree[0].clone().modpow(&set[0].clone(), &pp.mod_n.clone());
 
@@ -76,6 +69,7 @@ where
         u.clone(),
         o_u.clone(),
         &mut rng,
+        true,
     )
     .unwrap();
 

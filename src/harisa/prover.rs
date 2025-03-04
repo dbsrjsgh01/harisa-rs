@@ -2,7 +2,6 @@ use std::str::FromStr;
 
 use super::{
     arithm::ArithmCircuit,
-    bound::BoundCircuit,
     constants::{MIMC_7_91_BN254_ROUND_KEYS, RSA_2048},
     data_structure::{HarisaPP, HarisaProof},
     harisa::Harisa,
@@ -220,31 +219,6 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
         .unwrap();
         end_timer!(arithm_prove);
 
-        // bound => prf3
-        let bound_prove = start_timer!(|| "cpbound::prove");
-        let bound_circuit =
-            // BoundCircuit::<E::ScalarField>::new(small_prime, circuit_u.clone());
-            BoundCircuit::<E::ScalarField>::new(E::ScalarField::one(), circuit_u.clone());
-        let bound_prf = Self::generate_cc_proof(&pp.bound_ek.clone(), bound_circuit, rng).unwrap();
-
-        let bound_witness = [vec![bound_prf.open], circuit_u.clone()].concat();
-
-        let mut bound_ck = pp.bound_ek.ck.clone();
-
-        bound_ck.truncate(u.clone().len() + 1);
-
-        let bound_lnk_cm = inner_product::<E>(bound_witness.as_slice(), bound_ck.as_slice());
-
-        let (bound_lnk_prf, bound_lnk_cm_aux) = Self::generate_link_proof(
-            pp.bound_lnk_pp.clone(),
-            pp.bound_lnk_ek.clone(),
-            vec![o_u],
-            circuit_u.clone(),
-            vec![bound_prf.open],
-            rng,
-        )
-        .unwrap();
-        end_timer!(bound_prove);
         end_timer!(harisa_prover);
 
         Ok(HarisaProof {
@@ -255,13 +229,9 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
             q,
             k: rem,
             arithm_prf,
-            bound_prf,
             arithm_lnk_prf,
-            bound_lnk_prf,
             arithm_lnk_cm,
-            bound_lnk_cm,
             arithm_lnk_cm_aux,
-            bound_lnk_cm_aux,
         })
     }
 
@@ -273,6 +243,7 @@ impl<E: Pairing, LNK: Linker<E>, QAP: R1CSToQAP> Harisa<E, LNK, QAP> {
         u: Vec<BigInt>,
         o_u: E::ScalarField,
         rng: &mut R,
+        is_lookup: bool,
     ) -> Result<HarisaProof<E, LNK>, SynthesisError>
     where
         <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,

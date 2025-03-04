@@ -219,7 +219,7 @@ impl<E: Pairing, QAP: R1CSToQAP> CcGroth16<E, QAP> {
         let cs = ConstraintSystem::new_ref();
 
         // Set the optimization goal
-        cs.set_optimization_goal(OptimizationGoal::Constraints);
+        cs.set_optimization_goal(OptimizationGoal::Weight);
 
         // Synthesize the circuit.
         let synthesis_time = start_timer!(|| "Constraint synthesis");

@@ -65,7 +65,7 @@ impl<E: Pairing, QAP: R1CSToQAP> CcGroth16<E, QAP> {
 
         let setup_time = start_timer!(|| "Groth16::Generator");
         let cs = ConstraintSystem::new_ref();
-        cs.set_optimization_goal(OptimizationGoal::Constraints);
+        cs.set_optimization_goal(OptimizationGoal::Weight);
         cs.set_mode(SynthesisMode::Setup);
 
         // Synthesize the circuit.

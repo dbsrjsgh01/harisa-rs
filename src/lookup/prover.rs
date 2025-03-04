@@ -76,6 +76,7 @@ where
         ctt_circuit: CTT,
         wt_circuit: WT,
         rng: &mut R,
+        non_proven_elem: Vec<BigInt>,
     ) -> Result<LookupProof<E, M, LNK>, SynthesisError>
     where
         <<E as Pairing>::ScalarField as FromStr>::Err: core::fmt::Debug,
@@ -165,6 +166,7 @@ where
             harisa_elem,
             o_f_prime,
             rng,
+            true,
         )
         .unwrap();
 
@@ -172,15 +174,6 @@ where
 
         let ctt_prf = Self::generate_cc_proof(&pp.ctt_ek, ctt_circuit, rng).unwrap();
 
-        // let (ctt_lnk_prf, ctt_lnk_cm_aux) = Self::generate_link_proof(
-        //     pp.ctt_lnk_pp.clone(),
-        //     pp.ctt_lnk_ek.clone(),
-        //     vec![o_f_hat, o_f_hat],
-        //     [f_hat_scalar.clone(), f_hat_scalar.clone()].concat(),
-        //     vec![ctt_prf.open],
-        //     rng,
-        // )
-        // .unwrap();
         let (ctt_lnk_prf, ctt_lnk_cm_aux) = Self::generate_link_proof(
             pp.ctt_lnk_pp.clone(),
             pp.ctt_lnk_ek.clone(),
